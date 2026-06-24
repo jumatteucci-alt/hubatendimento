@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HubAtendimento — Atendimento automático no WhatsApp</title>
+<meta name="description" content="HubAtendimento responde seus clientes no WhatsApp em segundos, 24 horas por dia, e organiza os pedidos pro seu time.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12131a;
+    --ink-2:#1b1d27;
+    --paper:#f2efe9;
+    --paper-dim:#c9c6bf;
+    --coral:#ff6b4a;
+    --violet:#9a9eff;
+    --line: rgba(242,239,233,0.12);
+  }
+
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--paper);
+    font-family:'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{
+    font-family:'Archivo', sans-serif;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  .mono{
+    font-family:'IBM Plex Mono', monospace;
+    letter-spacing:0.02em;
+  }
+  a{ color:inherit; }
+  .wrap{
+    max-width:1080px;
+    margin:0 auto;
+    padding:0 28px;
+  }
+
+  /* NAV */
+  nav{
+    position:sticky; top:0; z-index:50;
+    background:rgba(18,19,26,0.85);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  nav .wrap{
+    display:flex; align-items:center; justify-content:space-between;
+    height:72px;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; font-weight:700; font-size:1.05rem; }
+  .brand-dot{ width:9px; height:9px; border-radius:50%; background:var(--coral); flex:none; }
+  nav .links{ display:flex; gap:28px; font-size:0.92rem; color:var(--paper-dim); }
+  nav .links a{ text-decoration:none; transition:color .15s; }
+  nav .links a:hover{ color:var(--paper); }
+  .btn{
+    display:inline-flex; align-items:center; gap:8px;
+    background:var(--coral); color:var(--ink);
+    padding:11px 20px; border-radius:8px;
+    font-weight:600; font-size:0.92rem; text-decoration:none;
+    border:none; cursor:pointer;
+    transition:transform .15s, box-shadow .15s;
+  }
+  .btn:hover{ transform:translateY(-1px); box-shadow:0 8px 20px -8px rgba(255,107,74,0.6); }
+  .btn:focus-visible, a:focus-visible, button:focus-visible{
+    outline:2px solid var(--violet); outline-offset:3px;
+  }
+
+  /* HERO */
+  header.hero{
+    padding:96px 0 80px;
+    border-bottom:1px solid var(--line);
+  }
+  .hero-grid{
+    display:grid; grid-template-columns:1.1fr 0.9fr; gap:56px; align-items:center;
+  }
+  .eyebrow{
+    color:var(--coral); text-transform:uppercase; font-size:0.78rem;
+    font-weight:600; letter-spacing:0.12em; margin-bottom:18px; display:block;
+  }
+  h1.headline{
+    font-size:clamp(2.3rem, 4.6vw, 3.6rem);
+    font-weight:800; line-height:1.05;
+  }
+  .headline .accent{ color:var(--coral); }
+  .lede{
+    margin-top:22px; font-size:1.08rem; line-height:1.6; color:var(--paper-dim);
+    max-width:480px;
+  }
+  .hero-ctas{ margin-top:34px; display:flex; gap:14px; flex-wrap:wrap; }
+  .btn-ghost{
+    background:transparent; border:1px solid var(--line); color:var(--paper);
+    padding:11px 20px; border-radius:8px; font-size:0.92rem; text-decoration:none;
+    font-weight:500; transition:border-color .15s;
+  }
+  .btn-ghost:hover{ border-color:var(--paper-dim); }
+
+  /* SIGNATURE: chat ticker */
+  .phone{
+    background:var(--ink-2); border:1px solid var(--line);
+    border-radius:22px; padding:18px; max-width:340px; margin:0 auto;
+    box-shadow:0 40px 80px -40px rgba(0,0,0,0.7);
+  }
+  .phone-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding-bottom:12px; margin-bottom:12px; border-bottom:1px solid var(--line);
+    font-size:0.82rem; color:var(--paper-dim);
+  }
+  .phone-head .status{ display:flex; align-items:center; gap:6px; }
+  .live-dot{
+    width:7px; height:7px; border-radius:50%; background:#5ee69b;
+    box-shadow:0 0 0 0 rgba(94,230,155,0.6);
+    animation:pulse 2s infinite;
+  }
+  @keyframes pulse{
+    0%{ box-shadow:0 0 0 0 rgba(94,230,155,0.5); }
+    70%{ box-shadow:0 0 0 7px rgba(94,230,155,0); }
+    100%{ box-shadow:0 0 0 0 rgba(94,230,155,0); }
+  }
+  .feed{ display:flex; flex-direction:column; gap:10px; height:300px; overflow-y:auto; scroll-behavior:smooth; padding-right:4px; }
+  .feed::-webkit-scrollbar{ width:5px; }
+  .feed::-webkit-scrollbar-thumb{ background:var(--line); border-radius:10px; }
+  .bubble{
+    max-width:82%; padding:10px 13px; border-radius:13px; font-size:0.86rem;
+    line-height:1.4; opacity:0; transform:translateY(6px);
+    animation:rise .4s forwards;
+  }
+  .bubble.in{ background:#2a2c38; align-self:flex-start; border-bottom-left-radius:4px; }
+  .bubble.out{ background:var(--coral); color:var(--ink); align-self:flex-end; border-bottom-right-radius:4px; font-weight:500; }
+  .bubble .time{ display:block; margin-top:4px; font-size:0.68rem; opacity:0.55; }
+  @keyframes rise{ to{ opacity:1; transform:translateY(0); } }
+
+  /* SECTIONS */
+  section{ padding:88px 0; border-bottom:1px solid var(--line); }
+  .section-head{ max-width:560px; margin-bottom:52px; }
+  .section-head .eyebrow{ margin-bottom:14px; }
+  .section-head h2{ font-size:clamp(1.7rem,3vw,2.3rem); font-weight:700; line-height:1.15; }
+  .section-head p{ color:var(--paper-dim); margin-top:14px; line-height:1.6; }
+
+  .steps{ display:grid; grid-template-columns:repeat(3,1fr); gap:32px; }
+  .step{ border-top:1px solid var(--line); padding-top:20px; }
+  .step .num{ color:var(--coral); }
+  .step h3{ font-size:1.15rem; margin:12px 0 10px; font-weight:600; }
+  .step p{ color:var(--paper-dim); font-size:0.95rem; line-height:1.55; }
+
+  .audience{ display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line); }
+  .audience div{ background:var(--ink); padding:26px 20px; font-size:0.95rem; }
+  .audience div span{ display:block; color:var(--paper-dim); font-size:0.8rem; margin-top:6px; }
+
+  .stats{ display:flex; gap:0; border:1px solid var(--line); }
+  .stat{ flex:1; padding:30px 24px; border-right:1px solid var(--line); }
+  .stat:last-child{ border-right:none; }
+  .stat .num{ font-size:2.1rem; font-weight:700; color:var(--coral); display:block; }
+  .stat .label{ color:var(--paper-dim); font-size:0.85rem; margin-top:6px; display:block; }
+
+  /* TESTE INTERATIVO */
+  .test-grid{ display:grid; grid-template-columns:1fr 1fr; gap:56px; align-items:start; }
+  .test-form label{ display:block; font-size:0.85rem; color:var(--paper-dim); margin-bottom:10px; }
+  .test-form textarea{
+    width:100%; background:var(--ink-2); border:1px solid var(--line); border-radius:10px;
+    color:var(--paper); font-family:'IBM Plex Sans', sans-serif; font-size:0.95rem;
+    padding:14px; resize:vertical; min-height:96px;
+  }
+  .test-form textarea:focus-visible{ outline:2px solid var(--violet); outline-offset:2px; }
+  .test-form .hint{ margin-top:10px; font-size:0.8rem; color:var(--paper-dim); }
+  .test-form .btn{ margin-top:16px; }
+  .test-form .chips{ display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .chip{
+    border:1px solid var(--line); background:transparent; color:var(--paper-dim);
+    font-size:0.8rem; padding:7px 12px; border-radius:999px; cursor:pointer;
+    transition:border-color .15s, color .15s;
+  }
+  .chip:hover{ border-color:var(--coral); color:var(--paper); }
+  .test-note{
+    margin-top:18px; font-size:0.78rem; color:var(--paper-dim); line-height:1.5;
+    border-left:2px solid var(--violet); padding-left:12px;
+  }
+  .feed.empty{ justify-content:center; text-align:center; }
+  .feed.empty::before{
+    content:'Descreva seu negócio à esquerda e a simulação aparece aqui.';
+    color:var(--paper-dim); font-size:0.88rem; display:block; padding-top:8px;
+  }
+
+  footer{ padding:56px 0; }
+  .footer-grid{ display:flex; justify-content:space-between; flex-wrap:wrap; gap:24px; align-items:flex-start; }
+  footer .col p, footer .col a{ color:var(--paper-dim); font-size:0.9rem; line-height:1.7; text-decoration:none; }
+  footer .col h4{ font-size:0.8rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--paper-dim); margin-bottom:10px; font-weight:600; }
+  footer .legal{ margin-top:40px; padding-top:24px; border-top:1px solid var(--line); color:var(--paper-dim); font-size:0.8rem; }
+
+  @media (max-width:880px){
+    .hero-grid{ grid-template-columns:1fr; }
+    .steps{ grid-template-columns:1fr; gap:24px; }
+    .audience{ grid-template-columns:repeat(2,1fr); }
+    .stats{ flex-direction:column; }
+    .stat{ border-right:none; border-bottom:1px solid var(--line); }
+    nav .links{ display:none; }
+    .phone{ margin-top:20px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .bubble{ animation:none; opacity:1; transform:none; }
+    .live-dot{ animation:none; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <div class="brand"><span class="brand-dot"></span>HubAtendimento</div>
+    <div class="links">
+      <a href="#como-funciona">Como funciona</a>
+      <a href="#teste">Testar agora</a>
+      <a href="#contato">Contato</a>
+    </div>
+    <a class="btn" href="#contato">Falar com a gente</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">Atendimento via WhatsApp</span>
+      <h1 class="headline">Nenhum pedido fica<br><span class="accent">sem resposta</span>, nem de madrugada.</h1>
+      <p class="lede">O HubAtendimento responde os clientes do seu negócio no WhatsApp em segundos, o dia inteiro, organiza o pedido e só chama alguém da sua equipe quando realmente precisa de uma pessoa.</p>
+      <div class="hero-ctas">
+        <a class="btn" href="#contato">Quero testar com meu negócio</a>
+        <a class="btn-ghost" href="#como-funciona">Ver como funciona</a>
+      </div>
+    </div>
+    <div class="phone" aria-label="Demonstração de conversa respondida automaticamente">
+      <div class="phone-head">
+        <span>WhatsApp · Pedidos</span>
+        <span class="status"><span class="live-dot"></span> respondendo</span>
+      </div>
+      <div class="feed" id="feed"></div>
+    </div>
+  </div>
+</header>
+
+<section id="como-funciona">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow mono">Como funciona</span>
+      <h2>Três etapas, do "oi" até o pedido pronto.</h2>
+      <p>Sem app novo pro cliente instalar, sem trocar de número. Tudo dentro do WhatsApp que ele já usa.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <span class="num mono">01</span>
+        <h3>O cliente escreve</h3>
+        <p>Manda mensagem como sempre mandou, perguntando o cardápio, o preço ou fazendo o pedido direto.</p>
+      </div>
+      <div class="step">
+        <span class="num mono">02</span>
+        <h3>O Hub responde e organiza</h3>
+        <p>Entende o pedido, confirma item, endereço e forma de pagamento, e já deixa tudo certinho pra cozinha ou pro time.</p>
+      </div>
+      <div class="step">
+        <span class="num mono">03</span>
+        <h3>Uma pessoa entra só se precisar</h3>
+        <p>Reclamação, pedido fora do comum ou qualquer coisa mais delicada vai direto pra alguém do seu time, sem enrolação.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="para-quem">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow mono">Pra quem é</span>
+      <h2>Pequenos negócios que vivem de WhatsApp.</h2>
+    </div>
+    <div class="audience">
+      <div>Restaurantes e delivery<span>cardápio, pedido e status</span></div>
+      <div>Clínicas e consultórios<span>agendamento e dúvidas</span></div>
+      <div>Salões e barbearias<span>horários e confirmação</span></div>
+      <div>Imobiliárias e corretores<span>qualificação de interessados</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow mono">Por que isso importa</span>
+      <h2>O pedido perdido às 23h não volta sozinho.</h2>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="num mono">24/7</span><span class="label">atendimento, inclusive fora do horário comercial</span></div>
+      <div class="stat"><span class="num mono">&lt;10s</span><span class="label">tempo médio de primeira resposta</span></div>
+      <div class="stat"><span class="num mono">100%</span><span class="label">das conversas com histórico salvo pro seu time</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="teste">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow mono">Teste agora</span>
+      <h2>Descreve seu negócio. A gente simula a conversa.</h2>
+      <p>Conta o tipo de negócio e o que você vende ou atende. É só uma simulação pra você ter ideia de como ficaria, ainda não é o agente de verdade respondendo.</p>
+    </div>
+    <div class="test-grid">
+      <div class="test-form">
+        <label for="bizInput">Tipo de negócio</label>
+        <textarea id="bizInput" placeholder="Ex: tenho uma hamburgueria, faço entrega à noite"></textarea>
+        <div class="chips">
+          <button class="chip" type="button" data-fill="Tenho uma pizzaria e faço delivery">Pizzaria</button>
+          <button class="chip" type="button" data-fill="Sou dentista e marco consultas">Clínica</button>
+          <button class="chip" type="button" data-fill="Tenho um salão de beleza">Salão</button>
+          <button class="chip" type="button" data-fill="Sou corretor de imóveis">Imobiliária</button>
+        </div>
+        <button class="btn" id="runSim" type="button">Gerar simulação</button>
+        <p class="test-note">Simulação ilustrativa: o próprio bot pede nome, endereço ou horário dentro da conversa, do jeito que faria com um cliente de verdade. O agente real entende qualquer pergunta, em qualquer ordem, com a IA lendo a mensagem de fato.</p>
+      </div>
+      <div class="phone" aria-live="polite">
+        <div class="phone-head">
+          <span>WhatsApp · Simulação</span>
+          <span class="status"><span class="live-dot"></span> pronto</span>
+        </div>
+        <div class="feed empty" id="simFeed"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="contato" style="border-bottom:none;">
+  <div class="wrap">
+    <div class="section-head" style="margin-bottom:32px;">
+      <span class="eyebrow mono">Contato</span>
+      <h2>Quer ver funcionando no seu negócio?</h2>
+      <p>Conta um pouco sobre seu negócio e a gente te mostra como ficaria na prática.</p>
+    </div>
+    <a class="btn" href="mailto:contato@hubatendimento.com.br">contato@hubatendimento.com.br</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-grid">
+      <div class="col">
+        <div class="brand" style="margin-bottom:10px;"><span class="brand-dot"></span>HubAtendimento</div>
+        <p>Atendimento automático no WhatsApp para pequenos negócios.</p>
+      </div>
+      <div class="col">
+        <h4>Contato</h4>
+        <p><a href="mailto:contato@hubatendimento.com.br">contato@hubatendimento.com.br</a></p>
+        <p>São Roque, SP — Brasil</p>
+      </div>
+    </div>
+    <div class="legal mono">© 2026 HubAtendimento. Todos os direitos reservados.</div>
+  </div>
+</footer>
+
+<script>
+  const feed = document.getElementById('feed');
+  const script = [
+    { side:'in', text:'Oi, vocês ainda estão abertos?', time:'23:42' },
+    { side:'out', text:'Sim! Atendemos até 00h hoje. Quer ver o cardápio ou já sabe o que vai pedir?', time:'23:42' },
+    { side:'in', text:'Quero 1 pizza grande de calabresa', time:'23:43' },
+    { side:'out', text:'Pizza grande de calabresa, R$ 54,90. Qual o endereço de entrega?', time:'23:43' },
+    { side:'in', text:'Rua das Flores, 120', time:'23:44' },
+    { side:'out', text:'Pedido confirmado e enviado pra cozinha. Chega em ~35 min 🍕', time:'23:44' },
+  ];
+
+  function playScript(){
+    feed.innerHTML = '';
+    let delay = 0;
+    script.forEach((msg, i) => {
+      delay += i === 0 ? 300 : 900;
+      setTimeout(() => {
+        const b = document.createElement('div');
+        b.className = 'bubble ' + msg.side;
+        b.innerHTML = msg.text + '<span class="time">' + msg.time + '</span>';
+        feed.appendChild(b);
+        feed.scrollTop = feed.scrollHeight;
+      }, delay);
+    });
+    setTimeout(playScript, delay + 3200);
+  }
+  playScript();
+
+  /* Simulador da seção "Testar agora" */
+  const templates = [
+    {
+      keys: ['pizza','hamburg','delivery','restaurante','comida','lanche','marmita','sushi','açaí','acai','padaria'],
+      item: 'pizza grande de calabresa',
+      price: 'R$ 54,90',
+      flow: (item, price) => [
+        { side:'in', text:'Oi, ainda dá pra pedir?' },
+        { side:'out', text:`Dá sim! Quer ver o cardápio ou já sabe o que vai querer?` },
+        { side:'in', text:`Quero 1 ${item}` },
+        { side:'out', text:`Anotado, ${item} por ${price}. Quer aproveitar e levar uma borda recheada ou um refrigerante junto? Sai mais barato que pedindo separado.` },
+        { side:'in', text:'Pode colocar a borda recheada' },
+        { side:'out', text:'Perfeito, já incluí. Pode me passar seu nome e o endereço de entrega?' },
+        { side:'in', text:'Camila, Rua das Flores, 120' },
+        { side:'out', text:'Perfeito, Camila! Pedido confirmado e enviado pra cozinha. Chega em ~35 min 🛵' },
+      ]
+    },
+    {
+      keys: ['dentista','clínic','clinic','consulta','médic','medic','psicólog','psicolog','fisioterap','estétic','estetic'],
+      flow: () => [
+        { side:'in', text:'Oi, vocês têm horário pra essa semana?' },
+        { side:'out', text:'Temos! Pra qual tipo de consulta seria, primeira vez ou retorno?' },
+        { side:'in', text:'Primeira vez' },
+        { side:'out', text:'Tenho quinta às 14h ou sexta às 9h. Aproveitando, temos um pacote com avaliação + retorno que sai mais econômico que marcar separado, quer que eu já inclua?' },
+        { side:'in', text:'Pode incluir o pacote' },
+        { side:'out', text:'Ótimo! Qual horário fica melhor, e qual seu nome?' },
+        { side:'in', text:'Quinta às 14h, sou o Marcos' },
+        { side:'out', text:'Agendado, Marcos! Te mando a confirmação e o endereço por aqui mesmo 📅' },
+      ]
+    },
+    {
+      keys: ['salão','salao','cabelo','barbear','barba','manicure','unha','estética','estetica'],
+      flow: () => [
+        { side:'in', text:'Quero marcar um corte' },
+        { side:'out', text:'Claro! Tenho horário às 16h e às 18h hoje. Qual prefere, e qual seu nome?' },
+        { side:'in', text:'16h, sou o Bruno' },
+        { side:'out', text:'Marcado, Bruno! Esse horário também tem vaga pra barba e hidratação, fazendo os três juntos sai com 15% de desconto. Quer incluir?' },
+        { side:'in', text:'Pode incluir os dois' },
+        { side:'out', text:'Fechado, corte + barba + hidratação às 16h. Te espero! ✂️' },
+      ]
+    },
+    {
+      keys: ['imobiliári','imobiliari','corretor','imóve','imove','aluguel','apartamento','casa'],
+      flow: () => [
+        { side:'in', text:'Vi o anúncio do apê de 2 quartos, ainda tá disponível?' },
+        { side:'out', text:'Tá sim! Você procura pra morar ou investir, e qual sua faixa de orçamento?' },
+        { side:'in', text:'Pra morar, até 3 mil de aluguel' },
+        { side:'out', text:'Esse encaixa certinho. Tenho também um de 2 quartos com varanda na mesma região, por um valor parecido, quer que eu inclua na visita pra você comparar?' },
+        { side:'in', text:'Pode incluir, quero ver os dois' },
+        { side:'out', text:'Combinado! Me passa seu nome e o melhor dia pra essa visita.' },
+        { side:'in', text:'Sou a Fernanda, sábado de manhã' },
+        { side:'out', text:'Perfeito, Fernanda! Sábado 10h, já com os dois imóveis no roteiro. Te chamo aqui um dia antes pra confirmar 🏠' },
+      ]
+    },
+  ];
+
+  const genericFlow = (desc) => [
+    { side:'in', text:'Oi, vocês estão atendendo?' },
+    { side:'out', text:`Sim! Aqui é o atendimento de ${desc || 'seu negócio'}. Em que posso ajudar, e qual seu nome?` },
+    { side:'in', text:'Sou a Camila, queria saber valores e como funciona' },
+    { side:'out', text:'Já te explico, Camila. Temos também um plano com benefício extra pra quem já fecha hoje, quer que eu te mostre essa opção também?' },
+    { side:'in', text:'Pode mostrar' },
+    { side:'out', text:'Perfeito, Camila. Te mando os detalhes das duas opções e, se fizer sentido, já deixo tudo agendado por aqui ✅' },
+  ];
+
+  function matchTemplate(text){
+    const lower = text.toLowerCase();
+    for(const t of templates){
+      if(t.keys.some(k => lower.includes(k))) return t;
+    }
+    return null;
+  }
+
+  function runSimulation(){
+    const input = document.getElementById('bizInput').value.trim();
+    const simFeed = document.getElementById('simFeed');
+    simFeed.classList.remove('empty');
+    simFeed.innerHTML = '';
+
+    const matched = matchTemplate(input);
+    const messages = matched
+      ? matched.flow(matched.item, matched.price)
+      : genericFlow(input);
+
+    let delay = 0;
+    messages.forEach((msg, i) => {
+      delay += i === 0 ? 250 : 850;
+      setTimeout(() => {
+        const b = document.createElement('div');
+        b.className = 'bubble ' + msg.side;
+        b.textContent = msg.text;
+        simFeed.appendChild(b);
+        simFeed.scrollTop = simFeed.scrollHeight;
+      }, delay);
+    });
+  }
+
+  document.getElementById('runSim').addEventListener('click', runSimulation);
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.getElementById('bizInput').value = chip.dataset.fill;
+    });
+  });
+</script>
+
+</body>
+</html>
