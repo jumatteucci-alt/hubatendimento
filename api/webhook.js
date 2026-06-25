@@ -54,6 +54,12 @@ export default async function handler(req, res) {
 }
 
 async function sendInstagramReply(recipientId, text) {
+  // LOG TEMPORÁRIO DE DEBUG: confirma se a variável chegou, sem expor o valor completo
+  const tokenPreview = process.env.IG_ACCESS_TOKEN
+    ? `definido, ${process.env.IG_ACCESS_TOKEN.length} caracteres, começa com "${process.env.IG_ACCESS_TOKEN.slice(0, 6)}..."`
+    : 'INDEFINIDO (variável não encontrada)';
+  console.log('IG_ACCESS_TOKEN:', tokenPreview);
+
   const url = `https://graph.facebook.com/v21.0/me/messages?access_token=${process.env.IG_ACCESS_TOKEN}`;
 
   const response = await fetch(url, {
