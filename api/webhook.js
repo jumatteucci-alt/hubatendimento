@@ -60,7 +60,7 @@ async function sendInstagramReply(recipientId, text) {
     : 'INDEFINIDO (variável não encontrada)';
   console.log('IG_ACCESS_TOKEN:', tokenPreview);
 
-  const url = `https://graph.facebook.com/v21.0/me/messages?access_token=${process.env.IG_ACCESS_TOKEN}`;
+  const url = `https://graph.instagram.com/v21.0/me/messages?access_token=${process.env.IG_ACCESS_TOKEN}`;
 
   const response = await fetch(url, {
     method: 'POST',
