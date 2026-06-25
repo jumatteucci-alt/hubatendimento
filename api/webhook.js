@@ -20,6 +20,9 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     const body = req.body;
 
+    // LOG TEMPORÁRIO DE DEBUG: mostra o payload inteiro que chegou, pra entendermos o formato real
+    console.log('PAYLOAD COMPLETO RECEBIDO:', JSON.stringify(body));
+
     try {
       const entry = body.entry?.[0];
       const messagingEvent = entry?.messaging?.[0];
@@ -32,6 +35,8 @@ export default async function handler(req, res) {
 
         // Por enquanto, só confirma o recebimento (próximo passo: chamar a IA aqui)
         await sendInstagramReply(senderId, `Recebi sua mensagem: "${userText}". Em breve um agente de IA vai responder isso automaticamente.`);
+      } else {
+        console.log('Nenhuma mensagem de texto encontrada no formato esperado (entry.messaging[0].message.text).');
       }
 
       // A Meta exige resposta 200 rápida, senão ela reenvia o evento
