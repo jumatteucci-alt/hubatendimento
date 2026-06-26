@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel de Pedidos — HubAtendimento</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12131a; --ink-2:#1b1d27; --paper:#f2efe9; --paper-dim:#c9c6bf;
+    --coral:#ff6b4a; --green:#5ee69b; --line: rgba(242,239,233,0.12);
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--ink); color:var(--paper);
+    font-family:'IBM Plex Sans', sans-serif; min-height:100vh;
+  }
+  .mono{ font-family:'IBM Plex Mono', monospace; }
+  h1{ font-family:'Archivo', sans-serif; font-weight:800; }
+
+  /* TELA DE SENHA */
+  #login-screen{
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:18px; padding:24px;
+  }
+  #login-screen input{
+    background:var(--ink-2); border:1px solid var(--line); border-radius:8px;
+    padding:12px 16px; color:var(--paper); font-size:1rem; width:260px;
+    text-align:center;
+  }
+  #login-screen input:focus-visible{ outline:2px solid var(--coral); }
+  #login-screen button{
+    background:var(--coral); color:var(--ink); border:none; border-radius:8px;
+    padding:12px 24px; font-weight:600; cursor:pointer; font-size:0.95rem;
+  }
+  #login-error{ color:var(--coral); font-size:0.85rem; min-height:18px; }
+
+  /* PAINEL */
+  #panel{ display:none; max-width:920px; margin:0 auto; padding:40px 24px 80px; }
+  .panel-head{
+    display:flex; justify-content:space-between; align-items:baseline;
+    margin-bottom:28px; flex-wrap:wrap; gap:10px;
+  }
+  .status-line{ color:var(--paper-dim); font-size:0.85rem; display:flex; align-items:center; gap:8px; }
+  .live-dot{
+    width:7px; height:7px; border-radius:50%; background:var(--green);
+    animation:pulse 2s infinite;
+  }
+  @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(94,230,155,.5);} 70%{box-shadow:0 0 0 7px rgba(94,230,155,0);} 100%{box-shadow:0 0 0 0 rgba(94,230,155,0);} }
+
+  .pedido{
+    background:var(--ink-2); border:1px solid var(--line); border-radius:12px;
+    padding:18px 20px; margin-bottom:14px;
+  }
+  .pedido-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; flex-wrap:wrap; gap:6px; }
+  .pedido-nome{ font-weight:600; font-size:1.05rem; }
+  .pedido-total{ color:var(--coral); font-weight:700; font-size:1.1rem; }
+  .pedido-itens{ color:var(--paper-dim); font-size:0.92rem; margin-bottom:8px; }
+  .pedido-meta{ display:flex; gap:18px; flex-wrap:wrap; font-size:0.85rem; color:var(--paper-dim); }
+  .pedido-meta span strong{ color:var(--paper); font-weight:500; }
+  .pedido-hora{ font-size:0.78rem; color:var(--paper-dim); margin-top:8px; }
+
+  .empty-state{
+    text-align:center; color:var(--paper-dim); padding:60px 20px; font-size:0.95rem;
+  }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <h1>Painel de Pedidos</h1>
+  <input type="password" id="senha-input" placeholder="Senha de acesso" autocomplete="off">
+  <button id="login-btn">Entrar</button>
+  <div id="login-error"></div>
+</div>
+
+<div id="panel">
+  <div class="panel-head">
+    <h1>Pedidos</h1>
+    <div class="status-line"><span class="live-dot"></span> atualizando automaticamente</div>
+  </div>
+  <div id="lista-pedidos"></div>
+</div>
+
+<script>
+  let senhaAtual = '';
+
+  document.getElementById('login-btn').addEventListener('click', tentarLogin);
+  document.getElementById('senha-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') tentarLogin();
+  });
+
+  async function tentarLogin() {
+    const senha = document.getElementById('senha-input').value;
+    const ok = await buscarPedidos(senha);
+    if (ok) {
+      senhaAtual = senha;
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('panel').style.display = 'block';
+      setInterval(() => buscarPedidos(senhaAtual), 8000);
+    } else {
+      document.getElementById('login-error').textContent = 'Senha incorreta.';
+    }
+  }
+
+  async function buscarPedidos(senha) {
+    try {
+      const resp = await fetch('/api/pedidos?senha=' + encodeURIComponent(senha));
+      if (!resp.ok) return false;
+      const data = await resp.json();
+      renderizar(data.pedidos || []);
+      return true;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
+  }
+
+  function renderizar(pedidos) {
+    const container = document.getElementById('lista-pedidos');
+
+    if (pedidos.length === 0) {
+      container.innerHTML = '<div class="empty-state">Nenhum pedido ainda. Quando um cliente fechar um pedido pelo Instagram, ele aparece aqui automaticamente.</div>';
+      return;
+    }
+
+    container.innerHTML = pedidos.map(p => {
+      const itens = (p.itens || []).join(', ');
+      const total = p.total != null ? 'R$ ' + Number(p.total).toFixed(2).replace('.', ',') : '-';
+      const hora = p.criadoEm ? new Date(p.criadoEm).toLocaleString('pt-BR') : '';
+      return `
+        <div class="pedido">
+          <div class="pedido-top">
+            <span class="pedido-nome">${escapeHtml(p.nome || 'Cliente')}</span>
+            <span class="pedido-total">${total}</span>
+          </div>
+          <div class="pedido-itens">${escapeHtml(itens)}</div>
+          <div class="pedido-meta">
+            <span><strong>Endereço:</strong> ${escapeHtml(p.endereco || '-')}</span>
+            <span><strong>Pagamento:</strong> ${escapeHtml(p.pagamento || '-')}</span>
+          </div>
+          <div class="pedido-hora mono">${hora}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+</script>
+
+</body>
+</html>
