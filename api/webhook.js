@@ -31,7 +31,7 @@ export default async function handler(req, res) {
 
         console.log(`[ManyChat] Mensagem de ${subscriberId}: ${userText}`);
 
-        const { replyText, pedidoFechado, pedidoCancelado } = await processarMensagem(subscriberId, userText);
+        const { replyText, pedidoFechado, pedidoCancelado, enviarCardapio } = await processarMensagem(subscriberId, userText);
 
         if (pedidoFechado) {
           await salvarPedido(subscriberId, pedidoFechado);
@@ -41,6 +41,12 @@ export default async function handler(req, res) {
         if (pedidoCancelado) {
           await cancelarUltimoPedido(subscriberId);
           console.log(`Pedido cancelado para ${subscriberId}`);
+        }
+
+        if (enviarCardapio) {
+          // Envia direto via Graph API (assumindo que subscriberId corresponde ao ID do Instagram).
+          // Isso é independente da resposta de texto, que o ManyChat envia separadamente.
+          await sendInstagramFile(subscriberId, 'https://hubatendimento.com.br/cardapio.pdf');
         }
 
         return res.status(200).json({ reply: replyText });
@@ -87,6 +93,8 @@ REGRAS:
 {"itens":["nome do item"],"total":0,"nome":"Nome do cliente","endereco":"Endereço completo","pagamento":"forma de pagamento"}
 ###FIM###
 - Se ainda faltar alguma informação, NÃO inclua esse bloco, apenas continue perguntando
+- Se o cliente pedir o cardápio em PDF, foto, arquivo, ou perguntar se você "tem o cardápio pra mandar", responda confirmando que vai enviar, e ADICIONE no final da resposta este bloco, exatamente assim:
+###ENVIAR_CARDAPIO###
 - Se o cliente pedir pra CANCELAR um pedido que já foi confirmado antes (você vai ver isso no histórico da conversa), responda confirmando o cancelamento de forma simpática, e ADICIONE no final da resposta este bloco, exatamente assim:
 ###CANCELAR###
 - Se o cliente disser "cancelar" mas ainda não tinha confirmado nenhum pedido na conversa, apenas confirme que não há nada pra cancelar, sem incluir nenhum bloco
@@ -189,6 +197,12 @@ async function processarMensagem(subscriberId, mensagemDoCliente) {
       replyText = replyText.replace('###CANCELAR###', '').trim();
     }
 
+    let enviarCardapio = false;
+    if (textoCompleto.includes('###ENVIAR_CARDAPIO###')) {
+      enviarCardapio = true;
+      replyText = replyText.replace('###ENVIAR_CARDAPIO###', '').trim();
+    }
+
     // Atualiza o histórico (mensagem do cliente + resposta da IA, sem os blocos de controle) e salva
     const novoHistorico = [
       ...contents,
@@ -196,10 +210,10 @@ async function processarMensagem(subscriberId, mensagemDoCliente) {
     ];
     await salvarHistorico(subscriberId, novoHistorico);
 
-    return { replyText, pedidoFechado, pedidoCancelado };
+    return { replyText, pedidoFechado, pedidoCancelado, enviarCardapio };
   } catch (err) {
     console.error('Erro ao chamar a IA:', err);
-    return { replyText: 'Desculpa, tive um problema aqui pra processar sua mensagem. Pode repetir?', pedidoFechado: null, pedidoCancelado: false };
+    return { replyText: 'Desculpa, tive um problema aqui pra processar sua mensagem. Pode repetir?', pedidoFechado: null, pedidoCancelado: false, enviarCardapio: false };
   }
 }
 
@@ -239,7 +253,8 @@ async function salvarHistorico(subscriberId, historico) {
 
 async function salvarPedido(subscriberId, pedido) {
   try {
-    const registro = { ...pedido, subscriberId, status: 'ativo', criadoEm: new Date().toISOString() };
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const registro = { ...pedido, id, subscriberId, status: 'ativo', criadoEm: new Date().toISOString() };
     await redisCommand(['LPUSH', 'pedidos', JSON.stringify(registro)]);
     await salvarCliente(subscriberId, pedido);
   } catch (err) {
@@ -300,6 +315,24 @@ async function cancelarUltimoPedido(subscriberId) {
   } catch (err) {
     console.error('Erro ao cancelar pedido:', err);
     return false;
+  }
+}
+
+async function sendInstagramFile(recipientId, fileUrl) {
+  const url = `https://graph.instagram.com/v21.0/me/messages?access_token=${process.env.IG_ACCESS_TOKEN}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      recipient: { id: recipientId },
+      message: { attachment: { type: 'file', payload: { url: fileUrl } } },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    console.error('Erro ao enviar arquivo pro Instagram:', errorBody);
   }
 }
 

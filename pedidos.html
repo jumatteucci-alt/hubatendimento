@@ -52,12 +52,22 @@
     background:var(--ink-2); border:1px solid var(--line); border-radius:12px;
     padding:18px 20px; margin-bottom:14px;
   }
-  .pedido.cancelado{ opacity:0.55; }
-  .badge-cancelado{
-    background:rgba(255,107,74,0.15); color:var(--coral); font-size:0.72rem;
-    font-weight:600; padding:3px 9px; border-radius:999px; margin-left:8px;
+  .pedido.cancelado, .pedido.finalizado{ opacity:0.55; }
+  .badge{
+    font-size:0.72rem; font-weight:600; padding:3px 9px; border-radius:999px; margin-left:8px;
     text-transform:uppercase; letter-spacing:0.04em;
   }
+  .badge-cancelado{ background:rgba(255,107,74,0.15); color:var(--coral); }
+  .badge-entrega{ background:rgba(94,230,155,0.15); color:var(--green); }
+  .badge-finalizado{ background:rgba(201,198,191,0.15); color:var(--paper-dim); }
+  .pedido-acoes{ display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+  .btn-acao{
+    border:1px solid var(--line); background:transparent; color:var(--paper);
+    font-size:0.82rem; padding:7px 14px; border-radius:7px; cursor:pointer;
+  }
+  .btn-acao.entrega{ border-color:var(--green); color:var(--green); }
+  .btn-acao.finalizar{ border-color:var(--paper-dim); color:var(--paper-dim); }
+  .btn-acao:hover{ opacity:0.8; }
   .pedido-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; flex-wrap:wrap; gap:6px; }
   .pedido-nome{ font-weight:600; font-size:1.05rem; }
   .pedido-total{ color:var(--coral); font-weight:700; font-size:1.1rem; }
@@ -134,11 +144,30 @@
       const itens = (p.itens || []).join(', ');
       const total = p.total != null ? 'R$ ' + Number(p.total).toFixed(2).replace('.', ',') : '-';
       const hora = p.criadoEm ? new Date(p.criadoEm).toLocaleString('pt-BR') : '';
-      const cancelado = p.status === 'cancelado';
+
+      let badge = '';
+      if (p.status === 'cancelado') badge = '<span class="badge badge-cancelado">Cancelado</span>';
+      else if (p.status === 'em_entrega') badge = '<span class="badge badge-entrega">Em entrega</span>';
+      else if (p.status === 'finalizado') badge = '<span class="badge badge-finalizado">Finalizado</span>';
+
+      let acoes = '';
+      if (p.status === 'ativo') {
+        acoes = `
+          <div class="pedido-acoes">
+            <button class="btn-acao entrega" onclick="executarAcao('${p.id}', 'entregando')">Saiu para entrega</button>
+            <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar pedido</button>
+          </div>`;
+      } else if (p.status === 'em_entrega') {
+        acoes = `
+          <div class="pedido-acoes">
+            <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar pedido</button>
+          </div>`;
+      }
+
       return `
-        <div class="pedido ${cancelado ? 'cancelado' : ''}">
+        <div class="pedido ${p.status === 'cancelado' ? 'cancelado' : ''} ${p.status === 'finalizado' ? 'finalizado' : ''}">
           <div class="pedido-top">
-            <span class="pedido-nome">${escapeHtml(p.nome || 'Cliente')}${cancelado ? '<span class="badge-cancelado">Cancelado</span>' : ''}</span>
+            <span class="pedido-nome">${escapeHtml(p.nome || 'Cliente')}${badge}</span>
             <span class="pedido-total">${total}</span>
           </div>
           <div class="pedido-itens">${escapeHtml(itens)}</div>
@@ -147,10 +176,28 @@
             <span><strong>Pagamento:</strong> ${escapeHtml(p.pagamento || '-')}</span>
           </div>
           <div class="pedido-hora mono">${hora}</div>
+          ${acoes}
         </div>
       `;
     }).join('');
   }
+
+  async function executarAcao(id, acao) {
+    try {
+      const resp = await fetch('/api/pedido-acao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senha: senhaAtual, id, acao }),
+      });
+      if (!resp.ok) {
+        alert('Não foi possível atualizar o pedido.');
+        return;
+      }
+      buscarPedidos(senhaAtual);
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao atualizar o pedido.');
+    }
 
   function escapeHtml(str) {
     const div = document.createElement('div');
