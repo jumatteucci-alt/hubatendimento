@@ -16,20 +16,30 @@ export default async function handler(req, res) {
     return res.status(403).send('Token de verificação inválido.');
   }
 
-  // 2. RECEBIMENTO DE MENSAGENS (a Meta chama isso via POST, a cada mensagem nova)
+  // 2. RECEBIMENTO DE MENSAGENS
   if (req.method === 'POST') {
     const body = req.body;
 
     console.log('PAYLOAD COMPLETO RECEBIDO:', JSON.stringify(body));
 
     try {
-      const entry = body.entry?.[0];
+      // FORMATO MANYCHAT: requisição vinda da ação "External Request"
+      // Aqui devolvemos a resposta no corpo, o próprio ManyChat envia a mensagem pro usuário.
+      if (body.source === 'manychat') {
+        const userText = body.text || '';
+        const subscriberId = body.subscriber_id || 'desconhecido';
 
-      // Formato real do Instagram: entry.changes[0].value
+        console.log(`[ManyChat] Mensagem de ${subscriberId}: ${userText}`);
+
+        const replyText = `Recebi sua mensagem: "${userText}". Em breve um agente de IA vai responder isso automaticamente.`;
+
+        return res.status(200).json({ reply: replyText });
+      }
+
+      // FORMATO META (webhook direto do Instagram/WhatsApp): mantemos como já estava
+      const entry = body.entry?.[0];
       const change = entry?.changes?.[0];
       const value = change?.value;
-
-      // Mantemos compatibilidade com o formato entry.messaging[0], usado por outros produtos da Meta
       const messagingEvent = entry?.messaging?.[0];
 
       const senderId = value?.sender?.id || messagingEvent?.sender?.id;
@@ -42,11 +52,10 @@ export default async function handler(req, res) {
         console.log('Nenhuma mensagem de texto encontrada nos formatos conhecidos.');
       }
 
-      // A Meta exige resposta 200 rápida, senão ela reenvia o evento
       return res.status(200).send('EVENT_RECEIVED');
     } catch (err) {
       console.error('Erro ao processar webhook:', err);
-      return res.status(200).send('EVENT_RECEIVED'); // sempre 200 pra Meta não reenviar em loop
+      return res.status(200).send('EVENT_RECEIVED');
     }
   }
 
