@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cadastro do Negócio — HubAtendimento</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12131a; --ink-2:#1b1d27; --paper:#f2efe9; --paper-dim:#c9c6bf;
+    --coral:#ff6b4a; --green:#5ee69b; --line: rgba(242,239,233,0.12);
+  }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--ink); color:var(--paper); font-family:'IBM Plex Sans', sans-serif; min-height:100vh; }
+  h1{ font-family:'Archivo', sans-serif; font-weight:800; }
+  label{ display:block; font-size:0.85rem; color:var(--paper-dim); margin-bottom:6px; }
+  input, textarea{
+    width:100%; background:var(--ink-2); border:1px solid var(--line); border-radius:8px;
+    padding:10px 14px; color:var(--paper); font-size:0.95rem; font-family:inherit;
+  }
+  input:focus-visible, textarea:focus-visible{ outline:2px solid var(--coral); }
+  button{
+    background:var(--coral); color:var(--ink); border:none; border-radius:8px;
+    padding:11px 22px; font-weight:600; cursor:pointer; font-size:0.92rem;
+  }
+  button.secundario{ background:transparent; border:1px solid var(--line); color:var(--paper); }
+
+  /* LOGIN */
+  #login-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:18px; padding:24px; }
+  #login-screen input{ width:260px; text-align:center; }
+  #login-error{ color:var(--coral); font-size:0.85rem; min-height:18px; }
+
+  /* PAINEL */
+  #panel{ display:none; max-width:760px; margin:0 auto; padding:40px 24px 100px; }
+  .section{ background:var(--ink-2); border:1px solid var(--line); border-radius:14px; padding:24px; margin-bottom:24px; }
+  .section h2{ font-family:'Archivo', sans-serif; font-size:1.1rem; margin:0 0 18px; }
+  .grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .field{ margin-bottom:14px; }
+
+  .item-row{
+    display:grid; grid-template-columns:2fr 1fr 2fr auto; gap:10px; margin-bottom:10px; align-items:start;
+  }
+  .item-row button{ background:transparent; border:1px solid var(--line); color:var(--coral); padding:10px; }
+
+  #save-status{ font-size:0.85rem; color:var(--green); min-height:18px; margin-top:10px; }
+
+  @media (max-width: 640px){
+    .grid-2{ grid-template-columns:1fr; }
+    .item-row{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <h1>Cadastro do Negócio</h1>
+  <input type="password" id="senha-input" placeholder="Senha de acesso" autocomplete="off">
+  <button id="login-btn">Entrar</button>
+  <div id="login-error"></div>
+</div>
+
+<div id="panel">
+  <h1 style="margin-bottom:28px;">Cadastro do Negócio</h1>
+
+  <div class="section">
+    <h2>Informações gerais</h2>
+    <div class="field">
+      <label for="nome">Nome do negócio</label>
+      <input type="text" id="nome">
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label for="horario">Horário de funcionamento</label>
+        <input type="text" id="horario" placeholder="Ex: 18h às 23h, todos os dias">
+      </div>
+      <div class="field">
+        <label for="tempoMedio">Tempo médio de entrega</label>
+        <input type="text" id="tempoMedio" placeholder="Ex: 35 a 45 minutos">
+      </div>
+    </div>
+    <div class="field">
+      <label for="taxaEntrega">Taxa de entrega (R$)</label>
+      <input type="number" step="0.01" id="taxaEntrega">
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Cardápio</h2>
+    <div id="itens-lista"></div>
+    <button class="secundario" id="add-item-btn" type="button">+ Adicionar item</button>
+  </div>
+
+  <button id="save-btn">Salvar alterações</button>
+  <div id="save-status"></div>
+</div>
+
+<script>
+  let senhaAtual = '';
+
+  document.getElementById('login-btn').addEventListener('click', tentarLogin);
+  document.getElementById('senha-input').addEventListener('keydown', e => { if (e.key === 'Enter') tentarLogin(); });
+  document.getElementById('add-item-btn').addEventListener('click', () => adicionarLinhaItem({ nome: '', preco: '', descricao: '' }));
+  document.getElementById('save-btn').addEventListener('click', salvar);
+
+  async function tentarLogin() {
+    const senha = document.getElementById('senha-input').value;
+    const resp = await fetch('/api/negocio?senha=' + encodeURIComponent(senha));
+    if (!resp.ok) {
+      document.getElementById('login-error').textContent = 'Senha incorreta.';
+      return;
+    }
+    const data = await resp.json();
+    senhaAtual = senha;
+    preencherFormulario(data.negocio);
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('panel').style.display = 'block';
+  }
+
+  function preencherFormulario(negocio) {
+    document.getElementById('nome').value = negocio.nome || '';
+    document.getElementById('horario').value = negocio.horario || '';
+    document.getElementById('tempoMedio').value = negocio.tempoMedio || '';
+    document.getElementById('taxaEntrega').value = negocio.taxaEntrega ?? '';
+
+    const lista = document.getElementById('itens-lista');
+    lista.innerHTML = '';
+    (negocio.itens || []).forEach(adicionarLinhaItem);
+  }
+
+  function adicionarLinhaItem(item) {
+    const lista = document.getElementById('itens-lista');
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.innerHTML = `
+      <input type="text" placeholder="Nome do item" class="item-nome" value="${escapeAttr(item.nome || '')}">
+      <input type="number" step="0.01" placeholder="Preço" class="item-preco" value="${item.preco ?? ''}">
+      <input type="text" placeholder="Descrição (opcional)" class="item-descricao" value="${escapeAttr(item.descricao || '')}">
+      <button type="button" title="Remover">✕</button>
+    `;
+    row.querySelector('button').addEventListener('click', () => row.remove());
+    lista.appendChild(row);
+  }
+
+  function escapeAttr(str) {
+    return String(str).replace(/"/g, '&quot;');
+  }
+
+  async function salvar() {
+    const itens = Array.from(document.querySelectorAll('.item-row')).map(row => ({
+      nome: row.querySelector('.item-nome').value.trim(),
+      preco: parseFloat(row.querySelector('.item-preco').value) || 0,
+      descricao: row.querySelector('.item-descricao').value.trim(),
+    })).filter(i => i.nome);
+
+    const negocio = {
+      nome: document.getElementById('nome').value.trim(),
+      horario: document.getElementById('horario').value.trim(),
+      tempoMedio: document.getElementById('tempoMedio').value.trim(),
+      taxaEntrega: parseFloat(document.getElementById('taxaEntrega').value) || 0,
+      itens,
+    };
+
+    const status = document.getElementById('save-status');
+    status.textContent = 'Salvando...';
+    status.style.color = 'var(--paper-dim)';
+
+    try {
+      const resp = await fetch('/api/negocio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senha: senhaAtual, negocio }),
+      });
+      if (!resp.ok) throw new Error('Falha ao salvar');
+      status.textContent = 'Salvo! O agente já está usando essas informações.';
+      status.style.color = 'var(--green)';
+    } catch (err) {
+      status.textContent = 'Erro ao salvar, tenta de novo.';
+      status.style.color = 'var(--coral)';
+    }
+  }
+</script>
+
+</body>
+</html>

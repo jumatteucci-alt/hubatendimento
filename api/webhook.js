@@ -72,38 +72,72 @@ export default async function handler(req, res) {
   return res.status(405).send('Método não permitido');
 }
 
-const SYSTEM_PROMPT = `Você é o atendente virtual de um restaurante de delivery, via Instagram.
+const PROMPT_BASE = `Você é o atendente virtual de um negócio de delivery, via Instagram.
 
 REGRAS:
 - Seja direto e simpático, como um atendente real escreveria, sem formalidade excessiva
 - Nunca invente item, preço ou prazo que não está no cardápio abaixo
 - Se o cliente pedir algo fora do cardápio, diga que não tem e sugira algo parecido
 - Ao montar um pedido, sempre peça nome, endereço de entrega e forma de pagamento antes de confirmar
+- Se você já souber o nome, endereço ou forma de pagamento do cliente (informado abaixo em "DADOS JÁ CONHECIDOS DESTE CLIENTE"), NÃO pergunte de novo, apenas confirme rapidamente (ex: "Vai pro mesmo endereço de sempre, Rua X?") antes de fechar o pedido
 - Ofereça um item adicional (bebida ou acompanhamento) antes de fechar o pedido
 - Se a dúvida for sobre reclamação ou algo fora do seu escopo, diga que vai chamar o responsável
 - Quando o cliente já tiver dado todas as informações (itens, nome, endereço, pagamento) e confirmado o pedido, responda normalmente confirmando, e ADICIONE no final da sua resposta um bloco assim, exatamente neste formato, sem nada antes ou depois dele:
 ###PEDIDO###
-{"itens":["Pizza grande de calabresa"],"total":54.90,"nome":"Nome do cliente","endereco":"Endereço completo","pagamento":"forma de pagamento"}
+{"itens":["nome do item"],"total":0,"nome":"Nome do cliente","endereco":"Endereço completo","pagamento":"forma de pagamento"}
 ###FIM###
 - Se ainda faltar alguma informação, NÃO inclua esse bloco, apenas continue perguntando
 - Se o cliente pedir pra CANCELAR um pedido que já foi confirmado antes (você vai ver isso no histórico da conversa), responda confirmando o cancelamento de forma simpática, e ADICIONE no final da resposta este bloco, exatamente assim:
 ###CANCELAR###
 - Se o cliente disser "cancelar" mas ainda não tinha confirmado nenhum pedido na conversa, apenas confirme que não há nada pra cancelar, sem incluir nenhum bloco
 
-CARDÁPIO:
-- Pizza grande de calabresa — R$ 54,90
-- Pizza grande de mussarela — R$ 49,90
-- Refrigerante lata — R$ 6,00
-- Borda recheada (catupiry) — R$ 12,00
-
-HORÁRIO: 18h às 23h, todos os dias
-TAXA DE ENTREGA: R$ 6,00
-TEMPO MÉDIO: 35 a 45 minutos
-
 Responda de forma curta, como em uma conversa real de WhatsApp/Instagram, sem parágrafos longos.`;
 
+// Cardápio e dados do negócio padrão, usados só enquanto o dono ainda não preencheu o cadastro
+const NEGOCIO_PADRAO = {
+  nome: 'Delivery',
+  horario: '18h às 23h, todos os dias',
+  taxaEntrega: 6.0,
+  tempoMedio: '35 a 45 minutos',
+  itens: [
+    { nome: 'Pizza grande de calabresa', preco: 54.9, descricao: '' },
+    { nome: 'Pizza grande de mussarela', preco: 49.9, descricao: '' },
+    { nome: 'Refrigerante lata', preco: 6.0, descricao: '' },
+    { nome: 'Borda recheada (catupiry)', preco: 12.0, descricao: '' },
+  ],
+};
+
+function montarSystemPrompt(negocio, cliente) {
+  const cardapioTexto = negocio.itens
+    .map(i => `- ${i.nome} — R$ ${Number(i.preco).toFixed(2).replace('.', ',')}${i.descricao ? ' — ' + i.descricao : ''}`)
+    .join('\n');
+
+  let blocoCliente = '';
+  if (cliente) {
+    blocoCliente = `\n\nDADOS JÁ CONHECIDOS DESTE CLIENTE (de pedidos anteriores, use pra agilizar, mas sempre confirme antes de fechar):
+- Nome: ${cliente.nome || 'desconhecido'}
+- Endereço: ${cliente.endereco || 'desconhecido'}
+- Forma de pagamento mais usada: ${cliente.pagamento || 'desconhecida'}`;
+  }
+
+  return `${PROMPT_BASE}
+
+CARDÁPIO (${negocio.nome}):
+${cardapioTexto}
+
+HORÁRIO: ${negocio.horario}
+TAXA DE ENTREGA: R$ ${Number(negocio.taxaEntrega).toFixed(2).replace('.', ',')}
+TEMPO MÉDIO: ${negocio.tempoMedio}${blocoCliente}`;
+}
+
 async function processarMensagem(subscriberId, mensagemDoCliente) {
-  const historico = await buscarHistorico(subscriberId);
+  const [historico, negocio, cliente] = await Promise.all([
+    buscarHistorico(subscriberId),
+    buscarNegocio(),
+    buscarCliente(subscriberId),
+  ]);
+
+  const systemPrompt = montarSystemPrompt(negocio, cliente);
 
   const contents = [
     ...historico,
@@ -120,7 +154,7 @@ async function processarMensagem(subscriberId, mensagemDoCliente) {
           'x-goog-api-key': process.env.GEMINI_API_KEY,
         },
         body: JSON.stringify({
-          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          system_instruction: { parts: [{ text: systemPrompt }] },
           contents,
         }),
       }
@@ -207,8 +241,43 @@ async function salvarPedido(subscriberId, pedido) {
   try {
     const registro = { ...pedido, subscriberId, status: 'ativo', criadoEm: new Date().toISOString() };
     await redisCommand(['LPUSH', 'pedidos', JSON.stringify(registro)]);
+    await salvarCliente(subscriberId, pedido);
   } catch (err) {
     console.error('Erro ao salvar pedido:', err);
+  }
+}
+
+async function buscarCliente(subscriberId) {
+  try {
+    const resultado = await redisCommand(['GET', `cliente:${subscriberId}`]);
+    return resultado?.result ? JSON.parse(resultado.result) : null;
+  } catch (err) {
+    console.error('Erro ao buscar cliente:', err);
+    return null;
+  }
+}
+
+async function salvarCliente(subscriberId, pedido) {
+  try {
+    const perfil = {
+      nome: pedido.nome,
+      endereco: pedido.endereco,
+      pagamento: pedido.pagamento,
+      atualizadoEm: new Date().toISOString(),
+    };
+    await redisCommand(['SET', `cliente:${subscriberId}`, JSON.stringify(perfil)]);
+  } catch (err) {
+    console.error('Erro ao salvar cliente:', err);
+  }
+}
+
+async function buscarNegocio() {
+  try {
+    const resultado = await redisCommand(['GET', 'negocio:config']);
+    return resultado?.result ? JSON.parse(resultado.result) : NEGOCIO_PADRAO;
+  } catch (err) {
+    console.error('Erro ao buscar negócio:', err);
+    return NEGOCIO_PADRAO;
   }
 }
 
