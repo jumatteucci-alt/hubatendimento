@@ -31,7 +31,7 @@ export default async function handler(req, res) {
 
         console.log(`[ManyChat] Mensagem de ${subscriberId}: ${userText}`);
 
-        const replyText = `Recebi sua mensagem: "${userText}". Em breve um agente de IA vai responder isso automaticamente.`;
+        const replyText = await gerarRespostaIA(userText);
 
         return res.status(200).json({ reply: replyText });
       }
@@ -60,6 +60,60 @@ export default async function handler(req, res) {
   }
 
   return res.status(405).send('Método não permitido');
+}
+
+async function gerarRespostaIA(mensagemDoCliente) {
+  const systemPrompt = `Você é o atendente virtual de um restaurante de delivery, via Instagram.
+
+REGRAS:
+- Seja direto e simpático, como um atendente real escreveria, sem formalidade excessiva
+- Nunca invente item, preço ou prazo que não está no cardápio abaixo
+- Se o cliente pedir algo fora do cardápio, diga que não tem e sugira algo parecido
+- Ao montar um pedido, sempre peça nome, endereço de entrega e forma de pagamento antes de confirmar
+- Ofereça um item adicional (bebida ou acompanhamento) antes de fechar o pedido
+- Se a dúvida for sobre reclamação ou algo fora do seu escopo, diga que vai chamar o responsável
+
+CARDÁPIO:
+- Pizza grande de calabresa — R$ 54,90
+- Pizza grande de mussarela — R$ 49,90
+- Refrigerante lata — R$ 6,00
+- Borda recheada (catupiry) — R$ 12,00
+
+HORÁRIO: 18h às 23h, todos os dias
+TAXA DE ENTREGA: R$ 6,00
+TEMPO MÉDIO: 35 a 45 minutos
+
+Responda de forma curta, como em uma conversa real de WhatsApp/Instagram, sem parágrafos longos.`;
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': process.env.GEMINI_API_KEY,
+        },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: 'user', parts: [{ text: mensagemDoCliente }] }],
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('Erro na API do Gemini:', JSON.stringify(data));
+      return 'Desculpa, tive um problema aqui pra processar sua mensagem. Pode repetir?';
+    }
+
+    const textoResposta = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    return textoResposta || 'Desculpa, não consegui entender. Pode reformular?';
+  } catch (err) {
+    console.error('Erro ao chamar a IA:', err);
+    return 'Desculpa, tive um problema aqui pra processar sua mensagem. Pode repetir?';
+  }
 }
 
 async function sendInstagramReply(recipientId, text) {
