@@ -31,11 +31,16 @@ export default async function handler(req, res) {
 
         console.log(`[ManyChat] Mensagem de ${subscriberId}: ${userText}`);
 
-        const { replyText, pedidoFechado } = await processarMensagem(subscriberId, userText);
+        const { replyText, pedidoFechado, pedidoCancelado } = await processarMensagem(subscriberId, userText);
 
         if (pedidoFechado) {
           await salvarPedido(subscriberId, pedidoFechado);
           console.log('Pedido salvo:', JSON.stringify(pedidoFechado));
+        }
+
+        if (pedidoCancelado) {
+          await cancelarUltimoPedido(subscriberId);
+          console.log(`Pedido cancelado para ${subscriberId}`);
         }
 
         return res.status(200).json({ reply: replyText });
@@ -81,6 +86,9 @@ REGRAS:
 {"itens":["Pizza grande de calabresa"],"total":54.90,"nome":"Nome do cliente","endereco":"Endereço completo","pagamento":"forma de pagamento"}
 ###FIM###
 - Se ainda faltar alguma informação, NÃO inclua esse bloco, apenas continue perguntando
+- Se o cliente pedir pra CANCELAR um pedido que já foi confirmado antes (você vai ver isso no histórico da conversa), responda confirmando o cancelamento de forma simpática, e ADICIONE no final da resposta este bloco, exatamente assim:
+###CANCELAR###
+- Se o cliente disser "cancelar" mas ainda não tinha confirmado nenhum pedido na conversa, apenas confirme que não há nada pra cancelar, sem incluir nenhum bloco
 
 CARDÁPIO:
 - Pizza grande de calabresa — R$ 54,90
@@ -127,31 +135,37 @@ async function processarMensagem(subscriberId, mensagemDoCliente) {
 
     const textoCompleto = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Desculpa, não consegui entender. Pode reformular?';
 
-    // Extrai o bloco de pedido, se existir, e limpa o texto antes de mandar pro cliente
+    // Extrai o bloco de pedido ou de cancelamento, se existir, e limpa o texto antes de mandar pro cliente
     let replyText = textoCompleto;
     let pedidoFechado = null;
+    let pedidoCancelado = false;
 
-    const match = textoCompleto.match(/###PEDIDO###([\s\S]*?)###FIM###/);
-    if (match) {
+    const matchPedido = textoCompleto.match(/###PEDIDO###([\s\S]*?)###FIM###/);
+    if (matchPedido) {
       try {
-        pedidoFechado = JSON.parse(match[1].trim());
+        pedidoFechado = JSON.parse(matchPedido[1].trim());
       } catch (e) {
-        console.error('Não foi possível parsear o bloco de pedido:', match[1]);
+        console.error('Não foi possível parsear o bloco de pedido:', matchPedido[1]);
       }
-      replyText = textoCompleto.replace(/###PEDIDO###[\s\S]*?###FIM###/, '').trim();
+      replyText = replyText.replace(/###PEDIDO###[\s\S]*?###FIM###/, '').trim();
     }
 
-    // Atualiza o histórico (mensagem do cliente + resposta da IA, sem o bloco de pedido) e salva
+    if (textoCompleto.includes('###CANCELAR###')) {
+      pedidoCancelado = true;
+      replyText = replyText.replace('###CANCELAR###', '').trim();
+    }
+
+    // Atualiza o histórico (mensagem do cliente + resposta da IA, sem os blocos de controle) e salva
     const novoHistorico = [
       ...contents,
       { role: 'model', parts: [{ text: textoCompleto }] },
     ];
     await salvarHistorico(subscriberId, novoHistorico);
 
-    return { replyText, pedidoFechado };
+    return { replyText, pedidoFechado, pedidoCancelado };
   } catch (err) {
     console.error('Erro ao chamar a IA:', err);
-    return { replyText: 'Desculpa, tive um problema aqui pra processar sua mensagem. Pode repetir?', pedidoFechado: null };
+    return { replyText: 'Desculpa, tive um problema aqui pra processar sua mensagem. Pode repetir?', pedidoFechado: null, pedidoCancelado: false };
   }
 }
 
@@ -191,10 +205,32 @@ async function salvarHistorico(subscriberId, historico) {
 
 async function salvarPedido(subscriberId, pedido) {
   try {
-    const registro = { ...pedido, subscriberId, criadoEm: new Date().toISOString() };
+    const registro = { ...pedido, subscriberId, status: 'ativo', criadoEm: new Date().toISOString() };
     await redisCommand(['LPUSH', 'pedidos', JSON.stringify(registro)]);
   } catch (err) {
     console.error('Erro ao salvar pedido:', err);
+  }
+}
+
+async function cancelarUltimoPedido(subscriberId) {
+  try {
+    const resultado = await redisCommand(['LRANGE', 'pedidos', '0', '99']);
+    const lista = resultado?.result || [];
+
+    for (let i = 0; i < lista.length; i++) {
+      const pedido = JSON.parse(lista[i]);
+      if (pedido.subscriberId === subscriberId && pedido.status === 'ativo') {
+        pedido.status = 'cancelado';
+        pedido.canceladoEm = new Date().toISOString();
+        await redisCommand(['LSET', 'pedidos', String(i), JSON.stringify(pedido)]);
+        return true;
+      }
+    }
+    console.log(`Nenhum pedido ativo encontrado pra cancelar (subscriber ${subscriberId})`);
+    return false;
+  } catch (err) {
+    console.error('Erro ao cancelar pedido:', err);
+    return false;
   }
 }
 

@@ -52,6 +52,12 @@
     background:var(--ink-2); border:1px solid var(--line); border-radius:12px;
     padding:18px 20px; margin-bottom:14px;
   }
+  .pedido.cancelado{ opacity:0.55; }
+  .badge-cancelado{
+    background:rgba(255,107,74,0.15); color:var(--coral); font-size:0.72rem;
+    font-weight:600; padding:3px 9px; border-radius:999px; margin-left:8px;
+    text-transform:uppercase; letter-spacing:0.04em;
+  }
   .pedido-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; flex-wrap:wrap; gap:6px; }
   .pedido-nome{ font-weight:600; font-size:1.05rem; }
   .pedido-total{ color:var(--coral); font-weight:700; font-size:1.1rem; }
@@ -128,10 +134,11 @@
       const itens = (p.itens || []).join(', ');
       const total = p.total != null ? 'R$ ' + Number(p.total).toFixed(2).replace('.', ',') : '-';
       const hora = p.criadoEm ? new Date(p.criadoEm).toLocaleString('pt-BR') : '';
+      const cancelado = p.status === 'cancelado';
       return `
-        <div class="pedido">
+        <div class="pedido ${cancelado ? 'cancelado' : ''}">
           <div class="pedido-top">
-            <span class="pedido-nome">${escapeHtml(p.nome || 'Cliente')}</span>
+            <span class="pedido-nome">${escapeHtml(p.nome || 'Cliente')}${cancelado ? '<span class="badge-cancelado">Cancelado</span>' : ''}</span>
             <span class="pedido-total">${total}</span>
           </div>
           <div class="pedido-itens">${escapeHtml(itens)}</div>
