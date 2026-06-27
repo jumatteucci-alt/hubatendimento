@@ -41,7 +41,7 @@ export default async function handler(req, res) {
       await redisCommand(['LSET', 'pedidos', String(index), JSON.stringify(encontrado)]);
 
       // Avisa o cliente, sem bloquear a resposta ao painel se isso falhar
-      await sendInstagramReply(
+      await enviarMensagemManyChat(
         encontrado.subscriberId,
         `Seu pedido saiu para entrega! 🛵 Chega em breve.`
       );
@@ -72,13 +72,21 @@ async function redisCommand(comando) {
   return response.json();
 }
 
-async function sendInstagramReply(recipientId, text) {
+async function enviarMensagemManyChat(subscriberId, texto) {
   try {
-    const url = `https://graph.instagram.com/v21.0/me/messages?access_token=${process.env.IG_ACCESS_TOKEN}`;
-    const response = await fetch(url, {
+    const response = await fetch('https://api.manychat.com/fb/sending/sendContent', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ recipient: { id: recipientId }, message: { text } }),
+      headers: {
+        Authorization: `Bearer ${process.env.MANYCHAT_API_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        subscriber_id: subscriberId,
+        data: {
+          version: 'v2',
+          content: { messages: [{ type: 'text', text: texto }] },
+        },
+      }),
     });
     if (!response.ok) {
       console.error('Erro ao notificar cliente:', await response.text());
