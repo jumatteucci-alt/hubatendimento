@@ -89,7 +89,6 @@ async function enviarMensagemManyChat(subscriberId, texto) {
             messages: [{ type: 'text', text: texto }],
           },
         },
-        message_tag: 'POST_PURCHASE_UPDATE',
       }),
     });
     if (!response.ok) {
