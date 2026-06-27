@@ -67,6 +67,7 @@
   }
   .btn-acao.entrega{ border-color:var(--green); color:var(--green); }
   .btn-acao.finalizar{ border-color:var(--paper-dim); color:var(--paper-dim); }
+  .btn-acao.excluir{ border-color:var(--coral); color:var(--coral); }
   .btn-acao:hover{ opacity:0.8; }
   .pedido-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; flex-wrap:wrap; gap:6px; }
   .pedido-nome{ font-weight:600; font-size:1.05rem; }
@@ -162,11 +163,18 @@
           <div class="pedido-acoes">
             <button class="btn-acao entrega" onclick="executarAcao('${p.id}', 'entregando')">${labelAcaoEntrega}</button>
             <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar</button>
+            <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
       } else if (p.status === 'em_entrega') {
         acoes = `
           <div class="pedido-acoes">
             <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar</button>
+            <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
+          </div>`;
+      } else {
+        acoes = `
+          <div class="pedido-acoes">
+            <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
       }
 
@@ -186,6 +194,12 @@
         </div>
       `;
     }).join('');
+  }
+
+  function confirmarExclusao(id) {
+    if (confirm('Tem certeza que quer excluir este pedido? Essa ação não pode ser desfeita.')) {
+      executarAcao(id, 'excluir');
+    }
   }
 
   async function executarAcao(id, acao) {

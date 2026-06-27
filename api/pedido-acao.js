@@ -11,7 +11,7 @@ export default async function handler(req, res) {
   if (!senha || senha !== process.env.PAINEL_SENHA) {
     return res.status(401).json({ error: 'Senha inválida' });
   }
-  if (!id || !['entregando', 'finalizar'].includes(acao)) {
+  if (!id || !['entregando', 'finalizar', 'excluir'].includes(acao)) {
     return res.status(400).json({ error: 'Parâmetros inválidos' });
   }
 
@@ -51,6 +51,11 @@ export default async function handler(req, res) {
       encontrado.status = 'finalizado';
       encontrado.finalizadoEm = new Date().toISOString();
       await redisCommand(['LSET', 'pedidos', String(index), JSON.stringify(encontrado)]);
+    }
+
+    if (acao === 'excluir') {
+      // Remove a entrada exata da lista (usa o valor bruto já armazenado, pra garantir match perfeito)
+      await redisCommand(['LREM', 'pedidos', '1', lista[index]]);
     }
 
     return res.status(200).json({ ok: true });
