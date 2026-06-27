@@ -84,8 +84,12 @@ async function enviarMensagemManyChat(subscriberId, texto) {
         subscriber_id: subscriberId,
         data: {
           version: 'v2',
-          content: { messages: [{ type: 'text', text: texto }] },
+          content: {
+            type: 'instagram',
+            messages: [{ type: 'text', text: texto }],
+          },
         },
+        message_tag: 'POST_PURCHASE_UPDATE',
       }),
     });
     if (!response.ok) {
