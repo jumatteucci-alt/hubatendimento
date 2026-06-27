@@ -31,10 +31,10 @@ export default async function handler(req, res) {
 
         console.log(`[ManyChat] Mensagem de ${subscriberId}: ${userText}`);
 
-        const { replyText, pedidoFechado, pedidoCancelado, enviarCardapio } = await processarMensagem(subscriberId, userText);
+        const { replyText, pedidoFechado, pedidoCancelado, enviarCardapio, tipoNegocio } = await processarMensagem(subscriberId, userText);
 
         if (pedidoFechado) {
-          await salvarPedido(subscriberId, pedidoFechado);
+          await salvarPedido(subscriberId, pedidoFechado, tipoNegocio);
           console.log('Pedido salvo:', JSON.stringify(pedidoFechado));
         }
 
@@ -78,16 +78,20 @@ export default async function handler(req, res) {
   return res.status(405).send('Método não permitido');
 }
 
-const PROMPT_BASE = `Você é o atendente virtual de um negócio de delivery, via Instagram.
+const PROMPT_COMUM = `Seja direto e simpático, como um atendente real escreveria, sem formalidade excessiva.
+Nunca invente serviço, item, preço ou prazo que não está listado abaixo.
+Se o cliente pedir algo que não está na lista, diga que não tem e sugira algo parecido.
+Se a dúvida for sobre reclamação ou algo fora do seu escopo, diga que vai chamar o responsável.
+Responda de forma curta, como em uma conversa real de WhatsApp/Instagram, sem parágrafos longos.`;
 
-REGRAS:
-- Seja direto e simpático, como um atendente real escreveria, sem formalidade excessiva
-- Nunca invente item, preço ou prazo que não está no cardápio abaixo
-- Se o cliente pedir algo fora do cardápio, diga que não tem e sugira algo parecido
+const PROMPT_DELIVERY = `Você é o atendente virtual de um negócio de delivery, via Instagram.
+
+${PROMPT_COMUM}
+
+REGRAS DO PEDIDO:
 - Ao montar um pedido, sempre peça nome, endereço de entrega e forma de pagamento antes de confirmar
 - Se você já souber o nome, endereço ou forma de pagamento do cliente (informado abaixo em "DADOS JÁ CONHECIDOS DESTE CLIENTE"), NÃO pergunte de novo, apenas confirme rapidamente (ex: "Vai pro mesmo endereço de sempre, Rua X?") antes de fechar o pedido
 - Ofereça um item adicional (bebida ou acompanhamento) antes de fechar o pedido
-- Se a dúvida for sobre reclamação ou algo fora do seu escopo, diga que vai chamar o responsável
 - Quando o cliente já tiver dado todas as informações (itens, nome, endereço, pagamento) e confirmado o pedido, responda normalmente confirmando, e ADICIONE no final da sua resposta um bloco assim, exatamente neste formato, sem nada antes ou depois dele:
 ###PEDIDO###
 {"itens":["nome do item"],"total":0,"nome":"Nome do cliente","endereco":"Endereço completo","pagamento":"forma de pagamento"}
@@ -97,12 +101,28 @@ REGRAS:
 ###ENVIAR_CARDAPIO###
 - Se o cliente pedir pra CANCELAR um pedido que já foi confirmado antes (você vai ver isso no histórico da conversa), responda confirmando o cancelamento de forma simpática, e ADICIONE no final da resposta este bloco, exatamente assim:
 ###CANCELAR###
-- Se o cliente disser "cancelar" mas ainda não tinha confirmado nenhum pedido na conversa, apenas confirme que não há nada pra cancelar, sem incluir nenhum bloco
+- Se o cliente disser "cancelar" mas ainda não tinha confirmado nenhum pedido na conversa, apenas confirme que não há nada pra cancelar, sem incluir nenhum bloco`;
 
-Responda de forma curta, como em uma conversa real de WhatsApp/Instagram, sem parágrafos longos.`;
+const PROMPT_AGENDAMENTO = `Você é o atendente virtual de um profissional que presta serviços por agendamento, via Instagram.
 
-// Cardápio e dados do negócio padrão, usados só enquanto o dono ainda não preencheu o cadastro
+${PROMPT_COMUM}
+
+REGRAS DO AGENDAMENTO:
+- Ao confirmar um agendamento, sempre peça nome, data/horário desejado e forma de pagamento (ou valor de sinal, se houver) antes de confirmar
+- Se você já souber o nome ou forma de pagamento do cliente (informado abaixo em "DADOS JÁ CONHECIDOS DESTE CLIENTE"), NÃO pergunte de novo, apenas confirme rapidamente
+- Nunca confirme um horário como definitivo sozinho, sempre diga que o profissional vai confirmar a disponibilidade daquele horário específico
+- Quando o cliente já tiver escolhido o serviço, dado nome, data/horário desejado e forma de pagamento, responda confirmando que vai verificar a disponibilidade, e ADICIONE no final da sua resposta um bloco assim, exatamente neste formato, sem nada antes ou depois dele:
+###PEDIDO###
+{"itens":["nome do serviço"],"total":0,"nome":"Nome do cliente","endereco":"Data/horário desejado","pagamento":"forma de pagamento ou sinal"}
+###FIM###
+- Se ainda faltar alguma informação, NÃO inclua esse bloco, apenas continue perguntando
+- Se o cliente pedir pra CANCELAR um agendamento já confirmado antes (você vai ver isso no histórico da conversa), responda confirmando o cancelamento de forma simpática, e ADICIONE no final da resposta este bloco, exatamente assim:
+###CANCELAR###
+- Se o cliente disser "cancelar" mas ainda não tinha confirmado nenhum agendamento na conversa, apenas confirme que não há nada pra cancelar, sem incluir nenhum bloco`;
+
+// Cardápio/serviços e dados do negócio padrão, usados só enquanto o dono ainda não preencheu o cadastro
 const NEGOCIO_PADRAO = {
+  tipo: 'delivery', // 'delivery' ou 'agendamento'
   nome: 'Delivery',
   horario: '18h às 23h, todos os dias',
   taxaEntrega: 6.0,
@@ -116,22 +136,35 @@ const NEGOCIO_PADRAO = {
 };
 
 function montarSystemPrompt(negocio, cliente) {
-  const cardapioTexto = negocio.itens
+  const tipo = negocio.tipo || 'delivery';
+  const promptBase = tipo === 'agendamento' ? PROMPT_AGENDAMENTO : PROMPT_DELIVERY;
+
+  const listaTexto = negocio.itens
     .map(i => `- ${i.nome} — R$ ${Number(i.preco).toFixed(2).replace('.', ',')}${i.descricao ? ' — ' + i.descricao : ''}`)
     .join('\n');
 
   let blocoCliente = '';
   if (cliente) {
-    blocoCliente = `\n\nDADOS JÁ CONHECIDOS DESTE CLIENTE (de pedidos anteriores, use pra agilizar, mas sempre confirme antes de fechar):
+    const labelDado2 = tipo === 'agendamento' ? 'Data/horário mais comum' : 'Endereço';
+    blocoCliente = `\n\nDADOS JÁ CONHECIDOS DESTE CLIENTE (de pedidos/agendamentos anteriores, use pra agilizar, mas sempre confirme antes de fechar):
 - Nome: ${cliente.nome || 'desconhecido'}
-- Endereço: ${cliente.endereco || 'desconhecido'}
+- ${labelDado2}: ${cliente.endereco || 'desconhecido'}
 - Forma de pagamento mais usada: ${cliente.pagamento || 'desconhecida'}`;
   }
 
-  return `${PROMPT_BASE}
+  if (tipo === 'agendamento') {
+    return `${promptBase}
+
+SERVIÇOS (${negocio.nome}):
+${listaTexto}
+
+HORÁRIO DE ATENDIMENTO: ${negocio.horario}${blocoCliente}`;
+  }
+
+  return `${promptBase}
 
 CARDÁPIO (${negocio.nome}):
-${cardapioTexto}
+${listaTexto}
 
 HORÁRIO: ${negocio.horario}
 TAXA DE ENTREGA: R$ ${Number(negocio.taxaEntrega).toFixed(2).replace('.', ',')}
@@ -210,10 +243,10 @@ async function processarMensagem(subscriberId, mensagemDoCliente) {
     ];
     await salvarHistorico(subscriberId, novoHistorico);
 
-    return { replyText, pedidoFechado, pedidoCancelado, enviarCardapio };
+    return { replyText, pedidoFechado, pedidoCancelado, enviarCardapio, tipoNegocio: negocio.tipo || 'delivery' };
   } catch (err) {
     console.error('Erro ao chamar a IA:', err);
-    return { replyText: 'Desculpa, tive um problema aqui pra processar sua mensagem. Pode repetir?', pedidoFechado: null, pedidoCancelado: false, enviarCardapio: false };
+    return { replyText: 'Desculpa, tive um problema aqui pra processar sua mensagem. Pode repetir?', pedidoFechado: null, pedidoCancelado: false, enviarCardapio: false, tipoNegocio: 'delivery' };
   }
 }
 
@@ -251,10 +284,10 @@ async function salvarHistorico(subscriberId, historico) {
   }
 }
 
-async function salvarPedido(subscriberId, pedido) {
+async function salvarPedido(subscriberId, pedido, tipo) {
   try {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    const registro = { ...pedido, id, subscriberId, status: 'ativo', criadoEm: new Date().toISOString() };
+    const registro = { ...pedido, id, subscriberId, tipo: tipo || 'delivery', status: 'ativo', criadoEm: new Date().toISOString() };
     await redisCommand(['LPUSH', 'pedidos', JSON.stringify(registro)]);
     await salvarCliente(subscriberId, pedido);
   } catch (err) {

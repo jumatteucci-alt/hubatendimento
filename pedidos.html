@@ -144,23 +144,29 @@
       const itens = (p.itens || []).join(', ');
       const total = p.total != null ? 'R$ ' + Number(p.total).toFixed(2).replace('.', ',') : '-';
       const hora = p.criadoEm ? new Date(p.criadoEm).toLocaleString('pt-BR') : '';
+      const agendamento = p.tipo === 'agendamento';
+      const labelCampo2 = agendamento ? 'Data/horário desejado' : 'Endereço';
+      const labelAcaoEntrega = agendamento ? 'Confirmar agendamento' : 'Saiu para entrega';
+      const msgAcaoEntrega = agendamento
+        ? 'Seu agendamento foi confirmado! ✅'
+        : 'Seu pedido saiu para entrega! 🛵 Chega em breve.';
 
       let badge = '';
       if (p.status === 'cancelado') badge = '<span class="badge badge-cancelado">Cancelado</span>';
-      else if (p.status === 'em_entrega') badge = '<span class="badge badge-entrega">Em entrega</span>';
+      else if (p.status === 'em_entrega') badge = `<span class="badge badge-entrega">${agendamento ? 'Confirmado' : 'Em entrega'}</span>`;
       else if (p.status === 'finalizado') badge = '<span class="badge badge-finalizado">Finalizado</span>';
 
       let acoes = '';
       if (p.status === 'ativo') {
         acoes = `
           <div class="pedido-acoes">
-            <button class="btn-acao entrega" onclick="executarAcao('${p.id}', 'entregando')">Saiu para entrega</button>
-            <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar pedido</button>
+            <button class="btn-acao entrega" onclick="executarAcao('${p.id}', 'entregando')">${labelAcaoEntrega}</button>
+            <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar</button>
           </div>`;
       } else if (p.status === 'em_entrega') {
         acoes = `
           <div class="pedido-acoes">
-            <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar pedido</button>
+            <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar</button>
           </div>`;
       }
 
@@ -172,7 +178,7 @@
           </div>
           <div class="pedido-itens">${escapeHtml(itens)}</div>
           <div class="pedido-meta">
-            <span><strong>Endereço:</strong> ${escapeHtml(p.endereco || '-')}</span>
+            <span><strong>${labelCampo2}:</strong> ${escapeHtml(p.endereco || '-')}</span>
             <span><strong>Pagamento:</strong> ${escapeHtml(p.pagamento || '-')}</span>
           </div>
           <div class="pedido-hora mono">${hora}</div>

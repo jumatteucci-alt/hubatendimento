@@ -41,10 +41,10 @@ export default async function handler(req, res) {
       await redisCommand(['LSET', 'pedidos', String(index), JSON.stringify(encontrado)]);
 
       // Avisa o cliente, sem bloquear a resposta ao painel se isso falhar
-      await enviarMensagemManyChat(
-        encontrado.subscriberId,
-        `Seu pedido saiu para entrega! 🛵 Chega em breve.`
-      );
+      const mensagem = encontrado.tipo === 'agendamento'
+        ? 'Seu agendamento foi confirmado! ✅'
+        : 'Seu pedido saiu para entrega! 🛵 Chega em breve.';
+      await enviarMensagemManyChat(encontrado.subscriberId, mensagem);
     }
 
     if (acao === 'finalizar') {

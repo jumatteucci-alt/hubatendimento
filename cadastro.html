@@ -14,10 +14,11 @@
   body{ margin:0; background:var(--ink); color:var(--paper); font-family:'IBM Plex Sans', sans-serif; min-height:100vh; }
   h1{ font-family:'Archivo', sans-serif; font-weight:800; }
   label{ display:block; font-size:0.85rem; color:var(--paper-dim); margin-bottom:6px; }
-  input, textarea{
+  input, textarea, select{
     width:100%; background:var(--ink-2); border:1px solid var(--line); border-radius:8px;
     padding:10px 14px; color:var(--paper); font-size:0.95rem; font-family:inherit;
   }
+  select{ appearance:none; cursor:pointer; }
   input:focus-visible, textarea:focus-visible{ outline:2px solid var(--coral); }
   button{
     background:var(--coral); color:var(--ink); border:none; border-radius:8px;
@@ -63,6 +64,17 @@
   <h1 style="margin-bottom:28px;">Cadastro do Negócio</h1>
 
   <div class="section">
+    <h2>Tipo de negócio</h2>
+    <div class="field">
+      <label for="tipo">Como funciona seu atendimento?</label>
+      <select id="tipo">
+        <option value="delivery">Delivery (cardápio, pedido, entrega)</option>
+        <option value="agendamento">Agendamento de serviço (pacotes, horário)</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="section">
     <h2>Informações gerais</h2>
     <div class="field">
       <label for="nome">Nome do negócio</label>
@@ -70,22 +82,22 @@
     </div>
     <div class="grid-2">
       <div class="field">
-        <label for="horario">Horário de funcionamento</label>
+        <label for="horario" id="label-horario">Horário de funcionamento</label>
         <input type="text" id="horario" placeholder="Ex: 18h às 23h, todos os dias">
       </div>
-      <div class="field">
+      <div class="field" id="campo-tempoMedio">
         <label for="tempoMedio">Tempo médio de entrega</label>
         <input type="text" id="tempoMedio" placeholder="Ex: 35 a 45 minutos">
       </div>
     </div>
-    <div class="field">
+    <div class="field" id="campo-taxaEntrega">
       <label for="taxaEntrega">Taxa de entrega (R$)</label>
       <input type="number" step="0.01" id="taxaEntrega">
     </div>
   </div>
 
   <div class="section">
-    <h2>Cardápio</h2>
+    <h2 id="titulo-itens">Cardápio</h2>
     <div id="itens-lista"></div>
     <button class="secundario" id="add-item-btn" type="button">+ Adicionar item</button>
   </div>
@@ -101,6 +113,17 @@
   document.getElementById('senha-input').addEventListener('keydown', e => { if (e.key === 'Enter') tentarLogin(); });
   document.getElementById('add-item-btn').addEventListener('click', () => adicionarLinhaItem({ nome: '', preco: '', descricao: '' }));
   document.getElementById('save-btn').addEventListener('click', salvar);
+  document.getElementById('tipo').addEventListener('change', aplicarTipo);
+
+  function aplicarTipo() {
+    const tipo = document.getElementById('tipo').value;
+    const agendamento = tipo === 'agendamento';
+    document.getElementById('campo-taxaEntrega').style.display = agendamento ? 'none' : 'block';
+    document.getElementById('campo-tempoMedio').style.display = agendamento ? 'none' : 'block';
+    document.getElementById('label-horario').textContent = agendamento ? 'Horário de atendimento' : 'Horário de funcionamento';
+    document.getElementById('titulo-itens').textContent = agendamento ? 'Serviços / Pacotes' : 'Cardápio';
+    document.getElementById('add-item-btn').textContent = agendamento ? '+ Adicionar serviço' : '+ Adicionar item';
+  }
 
   async function tentarLogin() {
     const senha = document.getElementById('senha-input').value;
@@ -117,10 +140,12 @@
   }
 
   function preencherFormulario(negocio) {
+    document.getElementById('tipo').value = negocio.tipo || 'delivery';
     document.getElementById('nome').value = negocio.nome || '';
     document.getElementById('horario').value = negocio.horario || '';
     document.getElementById('tempoMedio').value = negocio.tempoMedio || '';
     document.getElementById('taxaEntrega').value = negocio.taxaEntrega ?? '';
+    aplicarTipo();
 
     const lista = document.getElementById('itens-lista');
     lista.innerHTML = '';
@@ -153,6 +178,7 @@
     })).filter(i => i.nome);
 
     const negocio = {
+      tipo: document.getElementById('tipo').value,
       nome: document.getElementById('nome').value.trim(),
       horario: document.getElementById('horario').value.trim(),
       tempoMedio: document.getElementById('tempoMedio').value.trim(),
