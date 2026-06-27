@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agenda — HubAtendimento</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12131a; --ink-2:#1b1d27; --paper:#f2efe9; --paper-dim:#c9c6bf;
+    --coral:#ff6b4a; --green:#5ee69b; --violet:#9a9eff; --line: rgba(242,239,233,0.12);
+  }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--ink); color:var(--paper); font-family:'IBM Plex Sans', sans-serif; min-height:100vh; }
+  .mono{ font-family:'IBM Plex Mono', monospace; }
+  h1{ font-family:'Archivo', sans-serif; font-weight:800; }
+
+  /* LOGIN */
+  #login-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:18px; padding:24px; }
+  #login-screen input{
+    background:var(--ink-2); border:1px solid var(--line); border-radius:8px;
+    padding:12px 16px; color:var(--paper); font-size:1rem; width:260px; text-align:center;
+  }
+  #login-screen button{
+    background:var(--coral); color:var(--ink); border:none; border-radius:8px;
+    padding:12px 24px; font-weight:600; cursor:pointer; font-size:0.95rem;
+  }
+  #login-error{ color:var(--coral); font-size:0.85rem; min-height:18px; }
+
+  /* AGENDA */
+  #panel{ display:none; max-width:760px; margin:0 auto; padding:40px 24px 100px; }
+  .panel-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:32px; flex-wrap:wrap; gap:10px; }
+  .status-line{ color:var(--paper-dim); font-size:0.85rem; display:flex; align-items:center; gap:8px; }
+  .live-dot{ width:7px; height:7px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; }
+  @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(94,230,155,.5);} 70%{box-shadow:0 0 0 7px rgba(94,230,155,0);} 100%{box-shadow:0 0 0 0 rgba(94,230,155,0);} }
+
+  .dia-grupo{ margin-bottom:32px; }
+  .dia-titulo{
+    font-family:'Archivo', sans-serif; font-weight:700; font-size:1rem;
+    color:var(--violet); text-transform:capitalize; margin-bottom:14px;
+    padding-bottom:8px; border-bottom:1px solid var(--line);
+  }
+
+  .compromisso{ display:flex; gap:16px; background:var(--ink-2); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:10px; }
+  .compromisso.cancelado, .compromisso.finalizado{ opacity:0.5; }
+  .hora-bloco{
+    font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:1.05rem;
+    color:var(--coral); min-width:54px; flex:none;
+  }
+  .compromisso-corpo{ flex:1; }
+  .compromisso-nome{ font-weight:600; margin-bottom:2px; }
+  .compromisso-servico{ color:var(--paper-dim); font-size:0.9rem; margin-bottom:8px; }
+  .badge{ font-size:0.7rem; font-weight:600; padding:3px 9px; border-radius:999px; margin-left:8px; text-transform:uppercase; letter-spacing:0.04em; }
+  .badge-confirmado{ background:rgba(94,230,155,0.15); color:var(--green); }
+  .badge-cancelado{ background:rgba(255,107,74,0.15); color:var(--coral); }
+  .badge-finalizado{ background:rgba(201,198,191,0.15); color:var(--paper-dim); }
+
+  .compromisso-acoes{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .btn-acao{ border:1px solid var(--line); background:transparent; color:var(--paper); font-size:0.78rem; padding:6px 12px; border-radius:7px; cursor:pointer; }
+  .btn-acao.entrega{ border-color:var(--green); color:var(--green); }
+  .btn-acao.finalizar{ border-color:var(--paper-dim); color:var(--paper-dim); }
+  .btn-acao.excluir{ border-color:var(--coral); color:var(--coral); }
+  .btn-acao:hover{ opacity:0.8; }
+
+  .empty-state{ text-align:center; color:var(--paper-dim); padding:60px 20px; font-size:0.95rem; }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <h1>Agenda</h1>
+  <input type="password" id="senha-input" placeholder="Senha de acesso" autocomplete="off">
+  <button id="login-btn">Entrar</button>
+  <div id="login-error"></div>
+</div>
+
+<div id="panel">
+  <div class="panel-head">
+    <h1>Agenda</h1>
+    <div class="status-line"><span class="live-dot"></span> atualizando automaticamente</div>
+  </div>
+  <div id="lista-agenda"></div>
+</div>
+
+<script>
+  let senhaAtual = '';
+
+  document.getElementById('login-btn').addEventListener('click', tentarLogin);
+  document.getElementById('senha-input').addEventListener('keydown', e => { if (e.key === 'Enter') tentarLogin(); });
+
+  async function tentarLogin() {
+    const senha = document.getElementById('senha-input').value;
+    const ok = await buscarAgenda(senha);
+    if (ok) {
+      senhaAtual = senha;
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('panel').style.display = 'block';
+      setInterval(() => buscarAgenda(senhaAtual), 10000);
+    } else {
+      document.getElementById('login-error').textContent = 'Senha incorreta.';
+    }
+  }
+
+  async function buscarAgenda(senha) {
+    try {
+      const resp = await fetch('/api/pedidos?senha=' + encodeURIComponent(senha));
+      if (!resp.ok) return false;
+      const data = await resp.json();
+      renderizar(data.pedidos || []);
+      return true;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
+  }
+
+  function renderizar(pedidos) {
+    const container = document.getElementById('lista-agenda');
+
+    const compromissos = pedidos
+      .filter(p => p.tipo === 'agendamento' && p.dataHoraISO)
+      .sort((a, b) => new Date(a.dataHoraISO) - new Date(b.dataHoraISO));
+
+    if (compromissos.length === 0) {
+      container.innerHTML = '<div class="empty-state">Nenhum agendamento ainda. Quando alguém marcar um horário pelo Instagram, aparece aqui automaticamente.</div>';
+      return;
+    }
+
+    // Agrupa por dia
+    const grupos = {};
+    compromissos.forEach(c => {
+      const data = new Date(c.dataHoraISO);
+      const chave = data.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      if (!grupos[chave]) grupos[chave] = { data, itens: [] };
+      grupos[chave].itens.push(c);
+    });
+
+    container.innerHTML = Object.values(grupos).map(grupo => {
+      const tituloDia = grupo.data.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: '2-digit', month: 'long' });
+
+      const itensHtml = grupo.itens.map(p => {
+        const hora = new Date(p.dataHoraISO).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+        const servico = (p.itens || []).join(', ');
+
+        let badge = '';
+        if (p.status === 'cancelado') badge = '<span class="badge badge-cancelado">Cancelado</span>';
+        else if (p.status === 'em_entrega') badge = '<span class="badge badge-confirmado">Confirmado</span>';
+        else if (p.status === 'finalizado') badge = '<span class="badge badge-finalizado">Finalizado</span>';
+
+        let acoes = '';
+        if (p.status === 'ativo') {
+          acoes = `
+            <div class="compromisso-acoes">
+              <button class="btn-acao entrega" onclick="executarAcao('${p.id}', 'entregando')">Confirmar</button>
+              <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar</button>
+              <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
+            </div>`;
+        } else if (p.status === 'em_entrega') {
+          acoes = `
+            <div class="compromisso-acoes">
+              <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar</button>
+              <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
+            </div>`;
+        } else {
+          acoes = `
+            <div class="compromisso-acoes">
+              <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
+            </div>`;
+        }
+
+        return `
+          <div class="compromisso ${p.status === 'cancelado' ? 'cancelado' : ''} ${p.status === 'finalizado' ? 'finalizado' : ''}">
+            <div class="hora-bloco">${hora}</div>
+            <div class="compromisso-corpo">
+              <div class="compromisso-nome">${escapeHtml(p.nome || 'Cliente')}${badge}</div>
+              <div class="compromisso-servico">${escapeHtml(servico)}</div>
+              ${acoes}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="dia-grupo">
+          <div class="dia-titulo">${tituloDia}</div>
+          ${itensHtml}
+        </div>
+      `;
+    }).join('');
+  }
+
+  function confirmarExclusao(id) {
+    if (confirm('Tem certeza que quer excluir este agendamento? Essa ação não pode ser desfeita.')) {
+      executarAcao(id, 'excluir');
+    }
+  }
+
+  async function executarAcao(id, acao) {
+    try {
+      const resp = await fetch('/api/pedido-acao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senha: senhaAtual, id, acao }),
+      });
+      if (!resp.ok) {
+        alert('Não foi possível atualizar o agendamento.');
+        return;
+      }
+      buscarAgenda(senhaAtual);
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao atualizar o agendamento.');
+    }
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+</script>
+
+</body>
+</html>
