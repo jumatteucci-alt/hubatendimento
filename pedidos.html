@@ -136,12 +136,20 @@
   function renderizar(pedidos) {
     const container = document.getElementById('lista-pedidos');
 
-    if (pedidos.length === 0) {
+    // Se forem agendamentos com data marcada, mostra em ordem cronológica (próximos primeiro)
+    const ordenados = [...pedidos].sort((a, b) => {
+      if (a.dataHoraISO && b.dataHoraISO) return new Date(a.dataHoraISO) - new Date(b.dataHoraISO);
+      if (a.dataHoraISO) return -1;
+      if (b.dataHoraISO) return 1;
+      return 0;
+    });
+
+    if (ordenados.length === 0) {
       container.innerHTML = '<div class="empty-state">Nenhum pedido ainda. Quando um cliente fechar um pedido pelo Instagram, ele aparece aqui automaticamente.</div>';
       return;
     }
 
-    container.innerHTML = pedidos.map(p => {
+    container.innerHTML = ordenados.map(p => {
       const itens = (p.itens || []).join(', ');
       const total = p.total != null ? 'R$ ' + Number(p.total).toFixed(2).replace('.', ',') : '-';
       const hora = p.criadoEm ? new Date(p.criadoEm).toLocaleString('pt-BR') : '';

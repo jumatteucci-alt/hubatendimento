@@ -125,6 +125,8 @@
     document.getElementById('add-item-btn').textContent = agendamento ? '+ Adicionar serviço' : '+ Adicionar item';
   }
 
+
+
   async function tentarLogin() {
     const senha = document.getElementById('senha-input').value;
     const resp = await fetch('/api/negocio?senha=' + encodeURIComponent(senha));

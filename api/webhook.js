@@ -108,13 +108,16 @@ const PROMPT_AGENDAMENTO = `Você é o atendente virtual de um profissional que 
 ${PROMPT_COMUM}
 
 REGRAS DO AGENDAMENTO:
+- Você recebe abaixo, em "HORÁRIOS JÁ OCUPADOS", a agenda real do profissional. NUNCA sugira ou aceite um horário que esteja nessa lista
+- Se o cliente pedir um horário que já está ocupado, diga que não está disponível e sugira 2-3 horários livres próximos, dentro do horário de atendimento
 - Ao confirmar um agendamento, sempre peça nome, data/horário desejado e forma de pagamento (ou valor de sinal, se houver) antes de confirmar
 - Se você já souber o nome ou forma de pagamento do cliente (informado abaixo em "DADOS JÁ CONHECIDOS DESTE CLIENTE"), NÃO pergunte de novo, apenas confirme rapidamente
-- Nunca confirme um horário como definitivo sozinho, sempre diga que o profissional vai confirmar a disponibilidade daquele horário específico
-- Quando o cliente já tiver escolhido o serviço, dado nome, data/horário desejado e forma de pagamento, responda confirmando que vai verificar a disponibilidade, e ADICIONE no final da sua resposta um bloco assim, exatamente neste formato, sem nada antes ou depois dele:
+- Considere a sessão com duração de 1 hora, salvo se a descrição do serviço indicar outra duração
+- Quando o cliente já tiver escolhido o serviço, dado nome, data/horário desejado (livre na agenda) e forma de pagamento, responda confirmando o agendamento, e ADICIONE no final da sua resposta um bloco assim, exatamente neste formato, sem nada antes ou depois dele:
 ###PEDIDO###
-{"itens":["nome do serviço"],"total":0,"nome":"Nome do cliente","endereco":"Data/horário desejado","pagamento":"forma de pagamento ou sinal"}
+{"itens":["nome do serviço"],"total":0,"nome":"Nome do cliente","endereco":"Descrição legível da data/horário, ex: terça-feira 10/07 às 14h","dataHoraISO":"2026-07-10T14:00:00-03:00","pagamento":"forma de pagamento ou sinal"}
 ###FIM###
+- O campo "dataHoraISO" é OBRIGATÓRIO nesse bloco, no formato ISO 8601 com fuso de São Paulo (-03:00), pra conseguirmos lançar na agenda automaticamente. Calcule a data real com base em hoje, considerando o dia da semana mencionado pelo cliente
 - Se ainda faltar alguma informação, NÃO inclua esse bloco, apenas continue perguntando
 - Se o cliente pedir pra CANCELAR um agendamento já confirmado antes (você vai ver isso no histórico da conversa), responda confirmando o cancelamento de forma simpática, e ADICIONE no final da resposta este bloco, exatamente assim:
 ###CANCELAR###
@@ -135,7 +138,7 @@ const NEGOCIO_PADRAO = {
   ],
 };
 
-function montarSystemPrompt(negocio, cliente) {
+function montarSystemPrompt(negocio, cliente, horariosOcupados) {
   const tipo = negocio.tipo || 'delivery';
   const promptBase = tipo === 'agendamento' ? PROMPT_AGENDAMENTO : PROMPT_DELIVERY;
 
@@ -153,12 +156,22 @@ function montarSystemPrompt(negocio, cliente) {
   }
 
   if (tipo === 'agendamento') {
+    const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+    const ocupadosTexto = horariosOcupados && horariosOcupados.length
+      ? horariosOcupados.join('\n')
+      : '(nenhum horário ocupado encontrado, ou agenda ainda não conectada)';
+
     return `${promptBase}
+
+HOJE É: ${hoje}
 
 SERVIÇOS (${negocio.nome}):
 ${listaTexto}
 
-HORÁRIO DE ATENDIMENTO: ${negocio.horario}${blocoCliente}`;
+HORÁRIO DE ATENDIMENTO: ${negocio.horario}
+
+HORÁRIOS JÁ OCUPADOS (próximos 14 dias):
+${ocupadosTexto}${blocoCliente}`;
   }
 
   return `${promptBase}
@@ -178,7 +191,12 @@ async function processarMensagem(subscriberId, mensagemDoCliente) {
     buscarCliente(subscriberId),
   ]);
 
-  const systemPrompt = montarSystemPrompt(negocio, cliente);
+  let horariosOcupados = [];
+  if (negocio.tipo === 'agendamento') {
+    horariosOcupados = await buscarHorariosOcupadosInterno();
+  }
+
+  const systemPrompt = montarSystemPrompt(negocio, cliente, horariosOcupados);
 
   const contents = [
     ...historico,
@@ -326,6 +344,35 @@ async function buscarNegocio() {
   } catch (err) {
     console.error('Erro ao buscar negócio:', err);
     return NEGOCIO_PADRAO;
+  }
+}
+
+// --- Disponibilidade de agenda, usando os próprios agendamentos salvos no sistema ---
+
+async function buscarHorariosOcupadosInterno() {
+  try {
+    const resultado = await redisCommand(['LRANGE', 'pedidos', '0', '99']);
+    const lista = resultado?.result || [];
+
+    const agora = Date.now();
+    const em14dias = agora + 14 * 24 * 60 * 60 * 1000;
+
+    const ocupados = lista
+      .map(item => JSON.parse(item))
+      .filter(p => p.tipo === 'agendamento' && p.dataHoraISO && ['ativo', 'em_entrega'].includes(p.status))
+      .map(p => ({ inicio: new Date(p.dataHoraISO), nome: p.nome }))
+      .filter(p => p.inicio.getTime() >= agora && p.inicio.getTime() <= em14dias)
+      .sort((a, b) => a.inicio - b.inicio);
+
+    return ocupados.map(p => {
+      const fim = new Date(p.inicio.getTime() + 60 * 60 * 1000); // considera 1h de duração
+      const inicioTexto = p.inicio.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      const fimTexto = fim.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+      return `- ${inicioTexto} até ${fimTexto}`;
+    });
+  } catch (err) {
+    console.error('Erro ao buscar horários ocupados:', err);
+    return [];
   }
 }
 
