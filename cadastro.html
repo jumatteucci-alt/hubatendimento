@@ -119,6 +119,7 @@
 </div>
 
 <script>
+  const CHAVE_STORAGE = 'hubatendimento_senha';
   let senhaAtual = '';
 
   document.getElementById('login-btn').addEventListener('click', tentarLogin);
@@ -139,19 +140,24 @@
 
 
 
-  async function tentarLogin() {
-    const senha = document.getElementById('senha-input').value;
+  async function tentarLogin(senhaForcada) {
+    const senha = senhaForcada ?? document.getElementById('senha-input').value;
     const resp = await fetch('/api/negocio?senha=' + encodeURIComponent(senha));
     if (!resp.ok) {
+      localStorage.removeItem(CHAVE_STORAGE);
       document.getElementById('login-error').textContent = 'Senha incorreta.';
       return;
     }
     const data = await resp.json();
     senhaAtual = senha;
+    localStorage.setItem(CHAVE_STORAGE, senha);
     preencherFormulario(data.negocio);
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('panel').style.display = 'block';
   }
+
+  const senhaSalva = localStorage.getItem(CHAVE_STORAGE);
+  if (senhaSalva) tentarLogin(senhaSalva);
 
   function preencherFormulario(negocio) {
     document.getElementById('tipo').value = negocio.tipo || 'delivery';

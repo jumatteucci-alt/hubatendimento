@@ -96,23 +96,29 @@
 </div>
 
 <script>
+  const CHAVE_STORAGE = 'hubatendimento_senha';
   let senhaAtual = '';
 
   document.getElementById('login-btn').addEventListener('click', tentarLogin);
   document.getElementById('senha-input').addEventListener('keydown', e => { if (e.key === 'Enter') tentarLogin(); });
 
-  async function tentarLogin() {
-    const senha = document.getElementById('senha-input').value;
+  async function tentarLogin(senhaForcada) {
+    const senha = senhaForcada ?? document.getElementById('senha-input').value;
     const ok = await buscarAgenda(senha);
     if (ok) {
       senhaAtual = senha;
+      localStorage.setItem(CHAVE_STORAGE, senha);
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('panel').style.display = 'block';
       setInterval(() => buscarAgenda(senhaAtual), 10000);
     } else {
+      localStorage.removeItem(CHAVE_STORAGE);
       document.getElementById('login-error').textContent = 'Senha incorreta.';
     }
   }
+
+  const senhaSalva = localStorage.getItem(CHAVE_STORAGE);
+  if (senhaSalva) tentarLogin(senhaSalva);
 
   async function buscarAgenda(senha) {
     try {

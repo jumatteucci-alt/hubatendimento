@@ -113,6 +113,7 @@
 </div>
 
 <script>
+  const CHAVE_STORAGE = 'hubatendimento_senha';
   let senhaAtual = '';
 
   document.getElementById('login-btn').addEventListener('click', tentarLogin);
@@ -120,18 +121,24 @@
     if (e.key === 'Enter') tentarLogin();
   });
 
-  async function tentarLogin() {
-    const senha = document.getElementById('senha-input').value;
+  async function tentarLogin(senhaForcada) {
+    const senha = senhaForcada ?? document.getElementById('senha-input').value;
     const ok = await buscarPedidos(senha);
     if (ok) {
       senhaAtual = senha;
+      localStorage.setItem(CHAVE_STORAGE, senha);
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('panel').style.display = 'block';
       setInterval(() => buscarPedidos(senhaAtual), 8000);
     } else {
+      localStorage.removeItem(CHAVE_STORAGE);
       document.getElementById('login-error').textContent = 'Senha incorreta.';
     }
   }
+
+  // Tenta entrar automaticamente se já tiver uma senha salva neste navegador
+  const senhaSalva = localStorage.getItem(CHAVE_STORAGE);
+  if (senhaSalva) tentarLogin(senhaSalva);
 
   async function buscarPedidos(senha) {
     try {
