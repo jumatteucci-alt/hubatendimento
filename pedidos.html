@@ -36,6 +36,14 @@
   #login-error{ color:var(--coral); font-size:0.85rem; min-height:18px; }
 
   /* PAINEL */
+  .topnav{ display:flex; gap:4px; margin-bottom:32px; border-bottom:1px solid var(--line); padding-bottom:0; }
+  .topnav a{
+    color:var(--paper-dim); text-decoration:none; font-size:0.88rem; font-weight:500;
+    padding:10px 16px; border-bottom:2px solid transparent; transition:color .15s;
+  }
+  .topnav a:hover{ color:var(--paper); }
+  .topnav a.ativo{ color:var(--paper); border-bottom-color:var(--coral); font-weight:600; }
+
   #panel{ display:none; max-width:920px; margin:0 auto; padding:40px 24px 80px; }
   .panel-head{
     display:flex; justify-content:space-between; align-items:baseline;
@@ -92,6 +100,11 @@
 </div>
 
 <div id="panel">
+  <nav class="topnav">
+    <a href="/pedidos.html" class="ativo">Pedidos</a>
+    <a href="/agenda.html">Agenda</a>
+    <a href="/cadastro.html">Cadastro</a>
+  </nav>
   <div class="panel-head">
     <h1>Pedidos</h1>
     <div class="status-line"><span class="live-dot"></span> atualizando automaticamente</div>

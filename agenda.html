@@ -28,6 +28,14 @@
   #login-error{ color:var(--coral); font-size:0.85rem; min-height:18px; }
 
   /* AGENDA */
+  .topnav{ display:flex; gap:4px; margin-bottom:32px; border-bottom:1px solid var(--line); }
+  .topnav a{
+    color:var(--paper-dim); text-decoration:none; font-size:0.88rem; font-weight:500;
+    padding:10px 16px; border-bottom:2px solid transparent; transition:color .15s;
+  }
+  .topnav a:hover{ color:var(--paper); }
+  .topnav a.ativo{ color:var(--paper); border-bottom-color:var(--coral); font-weight:600; }
+
   #panel{ display:none; max-width:760px; margin:0 auto; padding:40px 24px 100px; }
   .panel-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:32px; flex-wrap:wrap; gap:10px; }
   .status-line{ color:var(--paper-dim); font-size:0.85rem; display:flex; align-items:center; gap:8px; }
@@ -75,6 +83,11 @@
 </div>
 
 <div id="panel">
+  <nav class="topnav">
+    <a href="/pedidos.html">Pedidos</a>
+    <a href="/agenda.html" class="ativo">Agenda</a>
+    <a href="/cadastro.html">Cadastro</a>
+  </nav>
   <div class="panel-head">
     <h1>Agenda</h1>
     <div class="status-line"><span class="live-dot"></span> atualizando automaticamente</div>
