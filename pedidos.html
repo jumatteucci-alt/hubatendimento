@@ -20,8 +20,13 @@
 
   /* TELA DE SENHA */
   #login-screen{
-    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    display:none;
+    min-height:100vh; align-items:center; justify-content:center;
     flex-direction:column; gap:18px; padding:24px;
+  }
+  #login-screen.visivel{ display:flex; }
+  #loading-screen{
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
   }
   #login-screen input{
     background:var(--ink-2); border:1px solid var(--line); border-radius:8px;
@@ -44,7 +49,7 @@
   .topnav a:hover{ color:var(--paper); }
   .topnav a.ativo{ color:var(--paper); border-bottom-color:var(--coral); font-weight:600; }
 
-  #panel{ display:none; max-width:920px; margin:0 auto; padding:40px 24px 80px; }
+  #panel{ display:none; max-width:880px; margin:0 auto; padding:40px 24px 80px; }
   .panel-head{
     display:flex; justify-content:space-between; align-items:baseline;
     margin-bottom:28px; flex-wrap:wrap; gap:10px;
@@ -92,6 +97,7 @@
 </head>
 <body>
 
+<div id="loading-screen"></div>
 <div id="login-screen">
   <h1>Painel de Pedidos</h1>
   <input type="password" id="senha-input" placeholder="Senha de acesso" autocomplete="off">
@@ -101,9 +107,9 @@
 
 <div id="panel">
   <nav class="topnav">
-    <a href="/pedidos.html" class="ativo">Pedidos</a>
-    <a href="/agenda.html">Agenda</a>
-    <a href="/cadastro.html">Cadastro</a>
+    <a href="/pedidos" class="ativo">Pedidos</a>
+    <a href="/agenda">Agenda</a>
+    <a href="/cadastro">Cadastro</a>
   </nav>
   <div class="panel-head">
     <h1>Pedidos</h1>
@@ -127,18 +133,26 @@
     if (ok) {
       senhaAtual = senha;
       localStorage.setItem(CHAVE_STORAGE, senha);
-      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('loading-screen').style.display = 'none';
+      document.getElementById('login-screen').classList.remove('visivel');
       document.getElementById('panel').style.display = 'block';
       setInterval(() => buscarPedidos(senhaAtual), 8000);
     } else {
       localStorage.removeItem(CHAVE_STORAGE);
-      document.getElementById('login-error').textContent = 'Senha incorreta.';
+      document.getElementById('loading-screen').style.display = 'none';
+      document.getElementById('login-screen').classList.add('visivel');
+      document.getElementById('login-error').textContent = senhaForcada ? '' : 'Senha incorreta.';
     }
   }
 
-  // Tenta entrar automaticamente se já tiver uma senha salva neste navegador
+  // Enquanto verifica se já existe uma senha salva, mostra só a tela neutra de carregamento
   const senhaSalva = localStorage.getItem(CHAVE_STORAGE);
-  if (senhaSalva) tentarLogin(senhaSalva);
+  if (senhaSalva) {
+    tentarLogin(senhaSalva);
+  } else {
+    document.getElementById('loading-screen').style.display = 'none';
+    document.getElementById('login-screen').classList.add('visivel');
+  }
 
   async function buscarPedidos(senha) {
     try {
