@@ -478,8 +478,6 @@ async function confirmarCompraLead(subscriberId, pedido, tipo) {
     console.error('Erro ao confirmar compra:', err);
   }
 }
-  }
-}
 
 async function buscarCliente(subscriberId) {
   try {
