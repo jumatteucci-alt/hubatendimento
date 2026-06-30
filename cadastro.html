@@ -137,6 +137,10 @@
       <input type="number" step="0.01" id="precoProduto">
     </div>
     <div class="field">
+      <label for="linkCheckout">Link de checkout</label>
+      <input type="text" id="linkCheckout" placeholder="https://...">
+    </div>
+    <div class="field">
       <label for="descricaoOferta">Descrição da oferta</label>
       <textarea id="descricaoOferta" rows="3" placeholder="Resumo curto do que o cliente recebe ao comprar"></textarea>
     </div>
@@ -276,6 +280,7 @@
     document.getElementById('taxaEntrega').value = negocio.taxaEntrega ?? '';
     document.getElementById('nomeProduto').value = negocio.nomeProduto || '';
     document.getElementById('precoProduto').value = negocio.precoProduto ?? '';
+    document.getElementById('linkCheckout').value = negocio.linkCheckout || '';
     document.getElementById('descricaoOferta').value = negocio.descricaoOferta || '';
     document.getElementById('textoPersuasivo').value = negocio.textoPersuasivo || '';
     aplicarTipo();
@@ -329,6 +334,7 @@
       diasBloqueados,
       nomeProduto: document.getElementById('nomeProduto').value.trim(),
       precoProduto: parseFloat(document.getElementById('precoProduto').value) || 0,
+      linkCheckout: document.getElementById('linkCheckout').value.trim(),
       descricaoOferta: document.getElementById('descricaoOferta').value.trim(),
       textoPersuasivo: document.getElementById('textoPersuasivo').value.trim(),
       camposColeta,

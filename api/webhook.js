@@ -124,15 +124,18 @@ ${PROMPT_COMUM}
 REGRAS DA VENDA:
 - Use o "TEXTO PERSUASIVO" abaixo como base para argumentar a favor do produto, adaptando ao que o cliente perguntar, sem simplesmente colar o texto inteiro de uma vez
 - Não invente benefício, resultado ou garantia que não esteja no texto persuasivo
-- Seja consultivo, responda dúvidas específicas antes de insistir no fechamento
-- Quando o cliente confirmar que quer comprar, você precisa coletar, um por um, exatamente os campos listados em "DADOS A COLETAR" abaixo. Não pule nenhum, e não peça nada além do que está nessa lista
+- Sempre conduza a conversa em direção à compra. Mesmo respondendo dúvidas, retome o argumento de venda e busque o fechamento, sem ser repetitivo ou insistente a ponto de incomodar
+- Antes de mandar o link de checkout, você precisa coletar, um por um, exatamente os campos listados em "DADOS A COLETAR" abaixo. Não pule nenhum, e não peça nada além do que está nessa lista
 - Se algum desses dados já for conhecido do cliente (informado em "DADOS JÁ CONHECIDOS DESTE CLIENTE"), não pergunte de novo, só confirme rapidamente
-- Quando TODOS os campos de "DADOS A COLETAR" já tiverem sido respondidos pelo cliente, responda confirmando a compra, e ADICIONE no final da sua resposta um bloco assim, exatamente neste formato, sem nada antes ou depois dele:
+- Quando TODOS os campos de "DADOS A COLETAR" já tiverem sido respondidos, envie o "LINK DE CHECKOUT" abaixo pro cliente, explicando que é por ali que ele finaliza a compra
+- IMPORTANTE: você NUNCA pode dizer que a compra foi concluída ou confirmada, porque o pagamento acontece fora dessa conversa, no link de checkout, e só o cliente sabe se finalizou ou não
+- Depois de mandar o link de checkout, em mensagens seguintes, pergunte se o cliente já concluiu a compra por ali
+- Quando o cliente confirmar explicitamente que JÁ COMPROU (concluiu o pagamento no link), agradeça e ADICIONE no final da sua resposta um bloco assim, exatamente neste formato, sem nada antes ou depois dele:
 ###PEDIDO###
 {"itens":["nome do produto"],"total":0,"dados":{"Nome do campo 1":"valor informado","Nome do campo 2":"valor informado"}}
 ###FIM###
 - As chaves dentro de "dados" devem ser EXATAMENTE os nomes dos campos listados em "DADOS A COLETAR", e os valores são o que o cliente respondeu
-- Se ainda faltar algum campo, NÃO inclua esse bloco, apenas continue perguntando o que falta
+- NUNCA inclua esse bloco antes do cliente confirmar explicitamente que concluiu a compra. Só coletar os dados e mandar o link não é suficiente
 - Se o cliente pedir pra CANCELAR uma compra já confirmada antes (você vai ver isso no histórico da conversa), responda confirmando o cancelamento de forma simpática, e ADICIONE no final da resposta este bloco, exatamente assim:
 ###CANCELAR###
 - Se o cliente disser "cancelar" mas ainda não tinha confirmado nenhuma compra na conversa, apenas confirme que não há nada pra cancelar, sem incluir nenhum bloco`;
@@ -153,7 +156,7 @@ const NEGOCIO_PADRAO = {
   ],
 };
 
-function montarSystemPrompt(negocio, cliente, horariosOcupados) {
+function montarSystemPrompt(negocio, cliente, horariosOcupados, primeiraMensagem) {
   const tipo = negocio.tipo || 'delivery';
   const promptBase = tipo === 'agendamento'
     ? PROMPT_AGENDAMENTO
@@ -185,6 +188,10 @@ function montarSystemPrompt(negocio, cliente, horariosOcupados) {
       blocoClienteDados = `\n\nDADOS JÁ CONHECIDOS DESTE CLIENTE (de compras anteriores, use pra agilizar, mas sempre confirme antes de fechar):\n${linhas}`;
     }
 
+    const instrucaoPrimeiraMensagem = primeiraMensagem
+      ? `\n\nESTA É A PRIMEIRA MENSAGEM DESSA CONVERSA: independente do que o cliente perguntou, sua resposta deve já apresentar o produto de forma breve e atrativa, usando o gancho mais forte do texto persuasivo, antes de responder a pergunta específica dele (se houver). Não espere ele perguntar sobre o produto para falar dele.`
+      : '';
+
     return `${promptBase}
 
 PRODUTO: ${negocio.nomeProduto || negocio.nome || '(sem nome definido)'}
@@ -196,8 +203,11 @@ ${negocio.descricaoOferta || '(não preenchido)'}
 TEXTO PERSUASIVO (use como base para os argumentos de venda):
 ${negocio.textoPersuasivo || '(não preenchido)'}
 
-DADOS A COLETAR (peça exatamente estes, um a um, antes de fechar a venda):
-${camposTexto}${blocoClienteDados}`;
+LINK DE CHECKOUT (envie esse link exato quando os dados já tiverem sido coletados):
+${negocio.linkCheckout || '(não preenchido, avise no painel que falta cadastrar)'}
+
+DADOS A COLETAR (peça exatamente estes, um a um, antes de mandar o link de checkout):
+${camposTexto}${blocoClienteDados}${instrucaoPrimeiraMensagem}`;
   }
 
   if (tipo === 'agendamento') {
@@ -247,7 +257,8 @@ async function processarMensagem(subscriberId, mensagemDoCliente) {
     horariosOcupados = await buscarHorariosOcupadosInterno();
   }
 
-  const systemPrompt = montarSystemPrompt(negocio, cliente, horariosOcupados);
+  const primeiraMensagem = historico.length === 0;
+  const systemPrompt = montarSystemPrompt(negocio, cliente, horariosOcupados, primeiraMensagem);
 
   const contents = [
     ...historico,

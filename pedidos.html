@@ -300,6 +300,7 @@
             ${metaHtml}
           </div>
           <div class="pedido-hora mono">${hora}</div>
+          ${produtoDigital ? '<div class="pedido-hora" style="margin-top:2px;">Compra informada pelo próprio cliente na conversa, não confirmada via pagamento.</div>' : ''}
           ${acoes}
         </div>
       `;
