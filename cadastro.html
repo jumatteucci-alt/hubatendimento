@@ -93,6 +93,7 @@
       <select id="tipo">
         <option value="delivery">Delivery (cardápio, pedido, entrega)</option>
         <option value="agendamento">Agendamento de serviço (pacotes, horário)</option>
+        <option value="produto_digital">Produto digital (venda persuasiva)</option>
       </select>
     </div>
   </div>
@@ -119,10 +120,40 @@
     </div>
   </div>
 
-  <div class="section">
+  <div class="section" id="secao-itens">
     <h2 id="titulo-itens">Cardápio</h2>
     <div id="itens-lista"></div>
     <button class="secundario" id="add-item-btn" type="button">+ Adicionar item</button>
+  </div>
+
+  <div class="section" id="secao-produto" style="display:none;">
+    <h2>Produto digital</h2>
+    <div class="field">
+      <label for="nomeProduto">Nome do produto</label>
+      <input type="text" id="nomeProduto" placeholder="Ex: Curso de Fotografia Essencial">
+    </div>
+    <div class="field">
+      <label for="precoProduto">Preço (R$)</label>
+      <input type="number" step="0.01" id="precoProduto">
+    </div>
+    <div class="field">
+      <label for="descricaoOferta">Descrição da oferta</label>
+      <textarea id="descricaoOferta" rows="3" placeholder="Resumo curto do que o cliente recebe ao comprar"></textarea>
+    </div>
+    <div class="field">
+      <label for="textoPersuasivo">Texto persuasivo (carta de vendas)</label>
+      <textarea id="textoPersuasivo" rows="10" placeholder="Cole aqui o texto de vendas que a IA vai usar como base para persuadir o cliente"></textarea>
+    </div>
+  </div>
+
+  <div class="section" id="secao-campos-coleta" style="display:none;">
+    <h2>Dados a coletar do cliente</h2>
+    <p style="color:var(--paper-dim); font-size:0.85rem; margin-bottom:14px;">Defina exatamente quais informações a IA deve pedir antes de fechar a venda, na ordem que quiser.</p>
+    <div style="display:flex; gap:10px; margin-bottom:14px;">
+      <input type="text" id="campo-coleta-input" placeholder="Ex: Nome completo" style="flex:1;">
+      <button class="secundario" id="add-campo-coleta-btn" type="button" style="white-space:nowrap;">+ Adicionar campo</button>
+    </div>
+    <div id="campos-coleta-lista" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
   </div>
 
   <div class="section" id="secao-bloqueados" style="display:none;">
@@ -155,16 +186,34 @@
       input.value = '';
     }
   });
+  document.getElementById('add-campo-coleta-btn').addEventListener('click', () => {
+    const input = document.getElementById('campo-coleta-input');
+    if (input.value.trim()) {
+      adicionarChipCampoColeta(input.value.trim());
+      input.value = '';
+    }
+  });
+  document.getElementById('campo-coleta-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      document.getElementById('add-campo-coleta-btn').click();
+    }
+  });
 
   function aplicarTipo() {
     const tipo = document.getElementById('tipo').value;
     const agendamento = tipo === 'agendamento';
-    document.getElementById('campo-taxaEntrega').style.display = agendamento ? 'none' : 'block';
-    document.getElementById('campo-tempoMedio').style.display = agendamento ? 'none' : 'block';
+    const produtoDigital = tipo === 'produto_digital';
+
+    document.getElementById('campo-taxaEntrega').style.display = (agendamento || produtoDigital) ? 'none' : 'block';
+    document.getElementById('campo-tempoMedio').style.display = (agendamento || produtoDigital) ? 'none' : 'block';
     document.getElementById('label-horario').textContent = agendamento ? 'Horário de atendimento' : 'Horário de funcionamento';
     document.getElementById('titulo-itens').textContent = agendamento ? 'Serviços / Pacotes' : 'Cardápio';
     document.getElementById('add-item-btn').textContent = agendamento ? '+ Adicionar serviço' : '+ Adicionar item';
     document.getElementById('secao-bloqueados').style.display = agendamento ? 'block' : 'none';
+    document.getElementById('secao-itens').style.display = produtoDigital ? 'none' : 'block';
+    document.getElementById('secao-produto').style.display = produtoDigital ? 'block' : 'none';
+    document.getElementById('secao-campos-coleta').style.display = produtoDigital ? 'block' : 'none';
   }
 
   function adicionarChipBloqueio(dataISO) {
@@ -175,6 +224,17 @@
     chip.dataset.data = dataISO;
     const dataFormatada = new Date(dataISO + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     chip.innerHTML = `${dataFormatada} <button type="button" title="Remover">✕</button>`;
+    chip.querySelector('button').addEventListener('click', () => chip.remove());
+    lista.appendChild(chip);
+  }
+
+  function adicionarChipCampoColeta(nomeCampo) {
+    const lista = document.getElementById('campos-coleta-lista');
+    if ([...lista.children].some(c => c.dataset.campo === nomeCampo)) return; // evita duplicado
+    const chip = document.createElement('div');
+    chip.className = 'chip-bloqueio';
+    chip.dataset.campo = nomeCampo;
+    chip.innerHTML = `${escapeAttr(nomeCampo)} <button type="button" title="Remover">✕</button>`;
     chip.querySelector('button').addEventListener('click', () => chip.remove());
     lista.appendChild(chip);
   }
@@ -214,6 +274,10 @@
     document.getElementById('horario').value = negocio.horario || '';
     document.getElementById('tempoMedio').value = negocio.tempoMedio || '';
     document.getElementById('taxaEntrega').value = negocio.taxaEntrega ?? '';
+    document.getElementById('nomeProduto').value = negocio.nomeProduto || '';
+    document.getElementById('precoProduto').value = negocio.precoProduto ?? '';
+    document.getElementById('descricaoOferta').value = negocio.descricaoOferta || '';
+    document.getElementById('textoPersuasivo').value = negocio.textoPersuasivo || '';
     aplicarTipo();
 
     const lista = document.getElementById('itens-lista');
@@ -222,6 +286,9 @@
 
     document.getElementById('bloqueios-lista').innerHTML = '';
     (negocio.diasBloqueados || []).forEach(adicionarChipBloqueio);
+
+    document.getElementById('campos-coleta-lista').innerHTML = '';
+    (negocio.camposColeta || []).forEach(adicionarChipCampoColeta);
   }
 
   function adicionarLinhaItem(item) {
@@ -249,7 +316,8 @@
       descricao: row.querySelector('.item-descricao').value.trim(),
     })).filter(i => i.nome);
 
-    const diasBloqueados = Array.from(document.querySelectorAll('.chip-bloqueio')).map(c => c.dataset.data).sort();
+    const diasBloqueados = Array.from(document.querySelectorAll('#bloqueios-lista .chip-bloqueio')).map(c => c.dataset.data).sort();
+    const camposColeta = Array.from(document.querySelectorAll('#campos-coleta-lista .chip-bloqueio')).map(c => c.dataset.campo);
 
     const negocio = {
       tipo: document.getElementById('tipo').value,
@@ -259,6 +327,11 @@
       taxaEntrega: parseFloat(document.getElementById('taxaEntrega').value) || 0,
       itens,
       diasBloqueados,
+      nomeProduto: document.getElementById('nomeProduto').value.trim(),
+      precoProduto: parseFloat(document.getElementById('precoProduto').value) || 0,
+      descricaoOferta: document.getElementById('descricaoOferta').value.trim(),
+      textoPersuasivo: document.getElementById('textoPersuasivo').value.trim(),
+      camposColeta,
     };
 
     const status = document.getElementById('save-status');

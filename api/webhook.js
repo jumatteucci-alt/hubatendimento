@@ -117,13 +117,34 @@ REGRAS DO AGENDAMENTO:
 ###CANCELAR###
 - Se o cliente disser "cancelar" mas ainda não tinha confirmado nenhum agendamento na conversa, apenas confirme que não há nada pra cancelar, sem incluir nenhum bloco`;
 
+const PROMPT_PRODUTO_DIGITAL = `Você é o atendente virtual de venda de um produto digital, via Instagram.
+
+${PROMPT_COMUM}
+
+REGRAS DA VENDA:
+- Use o "TEXTO PERSUASIVO" abaixo como base para argumentar a favor do produto, adaptando ao que o cliente perguntar, sem simplesmente colar o texto inteiro de uma vez
+- Não invente benefício, resultado ou garantia que não esteja no texto persuasivo
+- Seja consultivo, responda dúvidas específicas antes de insistir no fechamento
+- Quando o cliente confirmar que quer comprar, você precisa coletar, um por um, exatamente os campos listados em "DADOS A COLETAR" abaixo. Não pule nenhum, e não peça nada além do que está nessa lista
+- Se algum desses dados já for conhecido do cliente (informado em "DADOS JÁ CONHECIDOS DESTE CLIENTE"), não pergunte de novo, só confirme rapidamente
+- Quando TODOS os campos de "DADOS A COLETAR" já tiverem sido respondidos pelo cliente, responda confirmando a compra, e ADICIONE no final da sua resposta um bloco assim, exatamente neste formato, sem nada antes ou depois dele:
+###PEDIDO###
+{"itens":["nome do produto"],"total":0,"dados":{"Nome do campo 1":"valor informado","Nome do campo 2":"valor informado"}}
+###FIM###
+- As chaves dentro de "dados" devem ser EXATAMENTE os nomes dos campos listados em "DADOS A COLETAR", e os valores são o que o cliente respondeu
+- Se ainda faltar algum campo, NÃO inclua esse bloco, apenas continue perguntando o que falta
+- Se o cliente pedir pra CANCELAR uma compra já confirmada antes (você vai ver isso no histórico da conversa), responda confirmando o cancelamento de forma simpática, e ADICIONE no final da resposta este bloco, exatamente assim:
+###CANCELAR###
+- Se o cliente disser "cancelar" mas ainda não tinha confirmado nenhuma compra na conversa, apenas confirme que não há nada pra cancelar, sem incluir nenhum bloco`;
+
 // Cardápio/serviços e dados do negócio padrão, usados só enquanto o dono ainda não preencheu o cadastro
 const NEGOCIO_PADRAO = {
-  tipo: 'delivery', // 'delivery' ou 'agendamento'
+  tipo: 'delivery', // 'delivery', 'agendamento' ou 'produto_digital'
   nome: 'Delivery',
   horario: '18h às 23h, todos os dias',
   taxaEntrega: 6.0,
   tempoMedio: '35 a 45 minutos',
+  camposColeta: ['Nome completo', 'E-mail', 'Forma de pagamento'],
   itens: [
     { nome: 'Pizza grande de calabresa', preco: 54.9, descricao: '' },
     { nome: 'Pizza grande de mussarela', preco: 49.9, descricao: '' },
@@ -134,19 +155,49 @@ const NEGOCIO_PADRAO = {
 
 function montarSystemPrompt(negocio, cliente, horariosOcupados) {
   const tipo = negocio.tipo || 'delivery';
-  const promptBase = tipo === 'agendamento' ? PROMPT_AGENDAMENTO : PROMPT_DELIVERY;
+  const promptBase = tipo === 'agendamento'
+    ? PROMPT_AGENDAMENTO
+    : tipo === 'produto_digital'
+    ? PROMPT_PRODUTO_DIGITAL
+    : PROMPT_DELIVERY;
 
-  const listaTexto = negocio.itens
+  const listaTexto = (negocio.itens || [])
     .map(i => `- ${i.nome} — R$ ${Number(i.preco).toFixed(2).replace('.', ',')}${i.descricao ? ' — ' + i.descricao : ''}`)
     .join('\n');
 
   let blocoCliente = '';
-  if (cliente) {
+  if (cliente && tipo !== 'produto_digital') {
     const labelDado2 = tipo === 'agendamento' ? 'Data/horário mais comum' : 'Endereço';
-    blocoCliente = `\n\nDADOS JÁ CONHECIDOS DESTE CLIENTE (de pedidos/agendamentos anteriores, use pra agilizar, mas sempre confirme antes de fechar):
+    blocoCliente = `\n\nDADOS JÁ CONHECIDOS DESTE CLIENTE (de pedidos/compras anteriores, use pra agilizar, mas sempre confirme antes de fechar):
 - Nome: ${cliente.nome || 'desconhecido'}
 - ${labelDado2}: ${cliente.endereco || 'desconhecido'}
 - Forma de pagamento mais usada: ${cliente.pagamento || 'desconhecida'}`;
+  }
+
+  if (tipo === 'produto_digital') {
+    const camposTexto = (negocio.camposColeta && negocio.camposColeta.length)
+      ? negocio.camposColeta.map(c => `- ${c}`).join('\n')
+      : '- Nome completo\n- E-mail\n- Forma de pagamento';
+
+    let blocoClienteDados = '';
+    if (cliente && cliente.dados && Object.keys(cliente.dados).length) {
+      const linhas = Object.entries(cliente.dados).map(([k, v]) => `- ${k}: ${v}`).join('\n');
+      blocoClienteDados = `\n\nDADOS JÁ CONHECIDOS DESTE CLIENTE (de compras anteriores, use pra agilizar, mas sempre confirme antes de fechar):\n${linhas}`;
+    }
+
+    return `${promptBase}
+
+PRODUTO: ${negocio.nomeProduto || negocio.nome || '(sem nome definido)'}
+PREÇO: R$ ${Number(negocio.precoProduto || 0).toFixed(2).replace('.', ',')}
+
+DESCRIÇÃO DA OFERTA:
+${negocio.descricaoOferta || '(não preenchido)'}
+
+TEXTO PERSUASIVO (use como base para os argumentos de venda):
+${negocio.textoPersuasivo || '(não preenchido)'}
+
+DADOS A COLETAR (peça exatamente estes, um a um, antes de fechar a venda):
+${camposTexto}${blocoClienteDados}`;
   }
 
   if (tipo === 'agendamento') {
@@ -308,9 +359,18 @@ async function salvarHistorico(subscriberId, historico) {
 async function salvarPedido(subscriberId, pedido, tipo) {
   try {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    const registro = { ...pedido, id, subscriberId, tipo: tipo || 'delivery', status: 'ativo', criadoEm: new Date().toISOString() };
+
+    // Pra produto digital, os dados vêm livres em "dados" (objeto). Derivamos um "nome" pra exibição
+    // pegando o primeiro valor que pareça nome (ou o primeiro campo, se nenhum bater).
+    let nomeExibicao = pedido.nome;
+    if (tipo === 'produto_digital' && pedido.dados) {
+      const chaveNome = Object.keys(pedido.dados).find(k => k.toLowerCase().includes('nome'));
+      nomeExibicao = chaveNome ? pedido.dados[chaveNome] : Object.values(pedido.dados)[0];
+    }
+
+    const registro = { ...pedido, nome: nomeExibicao, id, subscriberId, tipo: tipo || 'delivery', status: 'ativo', criadoEm: new Date().toISOString() };
     await redisCommand(['LPUSH', 'pedidos', JSON.stringify(registro)]);
-    await salvarCliente(subscriberId, pedido);
+    await salvarCliente(subscriberId, registro, tipo);
   } catch (err) {
     console.error('Erro ao salvar pedido:', err);
   }
@@ -326,12 +386,13 @@ async function buscarCliente(subscriberId) {
   }
 }
 
-async function salvarCliente(subscriberId, pedido) {
+async function salvarCliente(subscriberId, pedido, tipo) {
   try {
     const perfil = {
       nome: pedido.nome,
       endereco: pedido.endereco,
       pagamento: pedido.pagamento,
+      dados: tipo === 'produto_digital' ? pedido.dados : undefined,
       atualizadoEm: new Date().toISOString(),
     };
     await redisCommand(['SET', `cliente:${subscriberId}`, JSON.stringify(perfil)]);

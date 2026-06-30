@@ -242,8 +242,9 @@
       const total = p.total != null ? 'R$ ' + Number(p.total).toFixed(2).replace('.', ',') : '-';
       const hora = p.criadoEm ? new Date(p.criadoEm).toLocaleString('pt-BR') : '';
       const agendamento = p.tipo === 'agendamento';
-      const labelCampo2 = agendamento ? 'Data/horário desejado' : 'Endereço';
-      const labelAcaoEntrega = agendamento ? 'Confirmar agendamento' : 'Saiu para entrega';
+      const produtoDigital = p.tipo === 'produto_digital';
+      const labelCampo2 = agendamento ? 'Data/horário desejado' : produtoDigital ? 'Contato' : 'Endereço';
+      const labelAcaoEntrega = agendamento ? 'Confirmar agendamento' : produtoDigital ? 'Confirmar venda' : 'Saiu para entrega';
       const msgAcaoEntrega = agendamento
         ? 'Seu agendamento foi confirmado! ✅'
         : 'Seu pedido saiu para entrega! 🛵 Chega em breve.';
@@ -277,6 +278,17 @@
           </div>`;
       }
 
+      let metaHtml = '';
+      if (produtoDigital && p.dados) {
+        metaHtml = Object.entries(p.dados)
+          .map(([k, v]) => `<span><strong>${escapeHtml(k)}:</strong> ${escapeHtml(String(v))}</span>`)
+          .join('');
+      } else {
+        metaHtml = `
+          <span><strong>${labelCampo2}:</strong> ${escapeHtml(p.endereco || '-')}</span>
+          <span><strong>Pagamento:</strong> ${escapeHtml(p.pagamento || '-')}</span>`;
+      }
+
       return `
         <div class="pedido ${p.status === 'cancelado' ? 'cancelado' : ''} ${p.status === 'finalizado' ? 'finalizado' : ''}">
           <div class="pedido-top">
@@ -285,8 +297,7 @@
           </div>
           <div class="pedido-itens">${escapeHtml(itens)}</div>
           <div class="pedido-meta">
-            <span><strong>${labelCampo2}:</strong> ${escapeHtml(p.endereco || '-')}</span>
-            <span><strong>Pagamento:</strong> ${escapeHtml(p.pagamento || '-')}</span>
+            ${metaHtml}
           </div>
           <div class="pedido-hora mono">${hora}</div>
           ${acoes}
