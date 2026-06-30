@@ -52,6 +52,14 @@
   }
   .item-row button{ background:transparent; border:1px solid var(--line); color:var(--coral); padding:10px; }
 
+  .chip-bloqueio{
+    display:flex; align-items:center; gap:8px; background:var(--ink); border:1px solid var(--line);
+    border-radius:999px; padding:6px 8px 6px 14px; font-size:0.85rem;
+  }
+  .chip-bloqueio button{
+    background:transparent; border:none; color:var(--coral); padding:2px 6px; font-size:0.85rem; cursor:pointer;
+  }
+
   #save-status{ font-size:0.85rem; color:var(--green); min-height:18px; margin-top:10px; }
 
   @media (max-width: 640px){
@@ -117,6 +125,16 @@
     <button class="secundario" id="add-item-btn" type="button">+ Adicionar item</button>
   </div>
 
+  <div class="section" id="secao-bloqueados" style="display:none;">
+    <h2>Dias sem atendimento</h2>
+    <p style="color:var(--paper-dim); font-size:0.85rem; margin-bottom:14px;">Marque dias de folga, viagem ou feriado. A IA nunca vai oferecer horário nesses dias.</p>
+    <div style="display:flex; gap:10px; margin-bottom:14px;">
+      <input type="date" id="data-bloqueio-input" style="flex:1;">
+      <button class="secundario" id="add-bloqueio-btn" type="button" style="white-space:nowrap;">+ Bloquear</button>
+    </div>
+    <div id="bloqueios-lista" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+  </div>
+
   <button id="save-btn">Salvar alterações</button>
   <div id="save-status"></div>
 </div>
@@ -130,6 +148,13 @@
   document.getElementById('add-item-btn').addEventListener('click', () => adicionarLinhaItem({ nome: '', preco: '', descricao: '' }));
   document.getElementById('save-btn').addEventListener('click', salvar);
   document.getElementById('tipo').addEventListener('change', aplicarTipo);
+  document.getElementById('add-bloqueio-btn').addEventListener('click', () => {
+    const input = document.getElementById('data-bloqueio-input');
+    if (input.value) {
+      adicionarChipBloqueio(input.value);
+      input.value = '';
+    }
+  });
 
   function aplicarTipo() {
     const tipo = document.getElementById('tipo').value;
@@ -139,6 +164,19 @@
     document.getElementById('label-horario').textContent = agendamento ? 'Horário de atendimento' : 'Horário de funcionamento';
     document.getElementById('titulo-itens').textContent = agendamento ? 'Serviços / Pacotes' : 'Cardápio';
     document.getElementById('add-item-btn').textContent = agendamento ? '+ Adicionar serviço' : '+ Adicionar item';
+    document.getElementById('secao-bloqueados').style.display = agendamento ? 'block' : 'none';
+  }
+
+  function adicionarChipBloqueio(dataISO) {
+    const lista = document.getElementById('bloqueios-lista');
+    if ([...lista.children].some(c => c.dataset.data === dataISO)) return; // evita duplicado
+    const chip = document.createElement('div');
+    chip.className = 'chip-bloqueio';
+    chip.dataset.data = dataISO;
+    const dataFormatada = new Date(dataISO + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    chip.innerHTML = `${dataFormatada} <button type="button" title="Remover">✕</button>`;
+    chip.querySelector('button').addEventListener('click', () => chip.remove());
+    lista.appendChild(chip);
   }
 
 
@@ -181,6 +219,9 @@
     const lista = document.getElementById('itens-lista');
     lista.innerHTML = '';
     (negocio.itens || []).forEach(adicionarLinhaItem);
+
+    document.getElementById('bloqueios-lista').innerHTML = '';
+    (negocio.diasBloqueados || []).forEach(adicionarChipBloqueio);
   }
 
   function adicionarLinhaItem(item) {
@@ -208,6 +249,8 @@
       descricao: row.querySelector('.item-descricao').value.trim(),
     })).filter(i => i.nome);
 
+    const diasBloqueados = Array.from(document.querySelectorAll('.chip-bloqueio')).map(c => c.dataset.data).sort();
+
     const negocio = {
       tipo: document.getElementById('tipo').value,
       nome: document.getElementById('nome').value.trim(),
@@ -215,6 +258,7 @@
       tempoMedio: document.getElementById('tempoMedio').value.trim(),
       taxaEntrega: parseFloat(document.getElementById('taxaEntrega').value) || 0,
       itens,
+      diasBloqueados,
     };
 
     const status = document.getElementById('save-status');

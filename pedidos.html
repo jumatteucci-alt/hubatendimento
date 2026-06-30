@@ -93,6 +93,18 @@
   .empty-state{
     text-align:center; color:var(--paper-dim); padding:60px 20px; font-size:0.95rem;
   }
+
+  .banner{
+    border-radius:12px; padding:14px 18px; margin-bottom:14px; font-size:0.88rem;
+  }
+  .banner-alerta{ background:rgba(255,107,74,0.1); border:1px solid rgba(255,107,74,0.35); }
+  .banner-erro{ background:rgba(255,107,74,0.06); border:1px solid var(--line); color:var(--paper-dim); }
+  .banner-titulo{ font-weight:600; color:var(--paper); margin-bottom:4px; display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  .banner button{
+    border:1px solid var(--coral); background:transparent; color:var(--coral);
+    font-size:0.78rem; padding:5px 12px; border-radius:7px; cursor:pointer; white-space:nowrap;
+  }
+  .btn-acao.reset{ border-color:var(--paper-dim); color:var(--paper-dim); }
 </style>
 </head>
 <body>
@@ -115,6 +127,7 @@
     <h1>Pedidos</h1>
     <div class="status-line"><span class="live-dot"></span> atualizando automaticamente</div>
   </div>
+  <div id="banners"></div>
   <div id="lista-pedidos"></div>
 </div>
 
@@ -160,10 +173,51 @@
       if (!resp.ok) return false;
       const data = await resp.json();
       renderizar(data.pedidos || []);
+      renderizarBanners(data.alertas || [], data.erros || []);
       return true;
     } catch (err) {
       console.error(err);
       return false;
+    }
+  }
+
+  function renderizarBanners(alertas, erros) {
+    const container = document.getElementById('banners');
+    let html = '';
+
+    alertas.forEach(a => {
+      html += `
+        <div class="banner banner-alerta">
+          <div class="banner-titulo">
+            <span>🔔 ${escapeHtml(a.nome || 'Cliente')} pediu pra falar com alguém</span>
+            <button onclick="resolverAlerta('${a.id}')">Marcar como resolvido</button>
+          </div>
+          <div>"${escapeHtml(a.mensagem || '')}"</div>
+        </div>`;
+    });
+
+    if (erros.length > 0) {
+      const ultimo = erros[0];
+      html += `
+        <div class="banner banner-erro">
+          <div class="banner-titulo"><span>⚠️ A IA teve ${erros.length} erro(s) recente(s)</span></div>
+          <div>Último: "${escapeHtml(ultimo.detalhe || '').slice(0, 140)}" — ${new Date(ultimo.criadoEm).toLocaleString('pt-BR')}</div>
+        </div>`;
+    }
+
+    container.innerHTML = html;
+  }
+
+  async function resolverAlerta(alertaId) {
+    try {
+      await fetch('/api/pedido-acao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senha: senhaAtual, acao: 'resolver_alerta', alertaId }),
+      });
+      buscarPedidos(senhaAtual);
+    } catch (err) {
+      console.error(err);
     }
   }
 
@@ -205,17 +259,20 @@
           <div class="pedido-acoes">
             <button class="btn-acao entrega" onclick="executarAcao('${p.id}', 'entregando')">${labelAcaoEntrega}</button>
             <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar</button>
+            <button class="btn-acao reset" onclick="resetarConversa('${p.subscriberId}')">Reiniciar conversa</button>
             <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
       } else if (p.status === 'em_entrega') {
         acoes = `
           <div class="pedido-acoes">
             <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar</button>
+            <button class="btn-acao reset" onclick="resetarConversa('${p.subscriberId}')">Reiniciar conversa</button>
             <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
       } else {
         acoes = `
           <div class="pedido-acoes">
+            <button class="btn-acao reset" onclick="resetarConversa('${p.subscriberId}')">Reiniciar conversa</button>
             <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
       }
@@ -241,6 +298,25 @@
   function confirmarExclusao(id) {
     if (confirm('Tem certeza que quer excluir este pedido? Essa ação não pode ser desfeita.')) {
       executarAcao(id, 'excluir');
+    }
+  }
+
+  async function resetarConversa(subscriberId) {
+    if (!confirm('Reiniciar a conversa com esse cliente? A IA vai esquecer todo o histórico dessa conversa (os pedidos salvos não são afetados).')) return;
+    try {
+      const resp = await fetch('/api/pedido-acao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senha: senhaAtual, acao: 'resetar_conversa', subscriberId }),
+      });
+      if (!resp.ok) {
+        alert('Não foi possível reiniciar a conversa.');
+        return;
+      }
+      alert('Conversa reiniciada.');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao reiniciar a conversa.');
     }
   }
 

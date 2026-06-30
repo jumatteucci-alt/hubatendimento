@@ -6,16 +6,40 @@ export default async function handler(req, res) {
     return res.status(405).send('Método não permitido');
   }
 
-  const { senha, id, acao } = req.body || {};
+  const { senha, id, acao, subscriberId, alertaId } = req.body || {};
 
   if (!senha || senha !== process.env.PAINEL_SENHA) {
     return res.status(401).json({ error: 'Senha inválida' });
   }
-  if (!id || !['entregando', 'finalizar', 'excluir'].includes(acao)) {
-    return res.status(400).json({ error: 'Parâmetros inválidos' });
-  }
 
   try {
+    // AÇÃO: resetar a memória da conversa de um cliente específico (não depende de um pedido)
+    if (acao === 'resetar_conversa') {
+      if (!subscriberId) return res.status(400).json({ error: 'subscriberId é obrigatório' });
+      await redisCommand(['DEL', `historico:${subscriberId}`]);
+      return res.status(200).json({ ok: true });
+    }
+
+    // AÇÃO: marcar um alerta de "chamar humano" como resolvido
+    if (acao === 'resolver_alerta') {
+      if (!alertaId) return res.status(400).json({ error: 'alertaId é obrigatório' });
+      const resultadoAlertas = await redisCommand(['LRANGE', 'alertas_humano', '0', '99']);
+      const listaAlertas = resultadoAlertas?.result || [];
+      for (let i = 0; i < listaAlertas.length; i++) {
+        const alerta = JSON.parse(listaAlertas[i]);
+        if (alerta.id === alertaId) {
+          alerta.status = 'resolvido';
+          await redisCommand(['LSET', 'alertas_humano', String(i), JSON.stringify(alerta)]);
+          break;
+        }
+      }
+      return res.status(200).json({ ok: true });
+    }
+
+    if (!id || !['entregando', 'finalizar', 'excluir'].includes(acao)) {
+      return res.status(400).json({ error: 'Parâmetros inválidos' });
+    }
+
     const resultado = await redisCommand(['LRANGE', 'pedidos', '0', '99']);
     const lista = resultado?.result || [];
 

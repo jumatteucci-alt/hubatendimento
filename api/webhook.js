@@ -31,7 +31,7 @@ export default async function handler(req, res) {
 
         console.log(`[ManyChat] Mensagem de ${subscriberId}: ${userText}`);
 
-        const { replyText, pedidoFechado, pedidoCancelado, enviarCardapio, tipoNegocio } = await processarMensagem(subscriberId, userText);
+        const { replyText, pedidoFechado, pedidoCancelado, tipoNegocio } = await processarMensagem(subscriberId, userText);
 
         if (pedidoFechado) {
           await salvarPedido(subscriberId, pedidoFechado, tipoNegocio);
@@ -41,12 +41,6 @@ export default async function handler(req, res) {
         if (pedidoCancelado) {
           await cancelarUltimoPedido(subscriberId);
           console.log(`Pedido cancelado para ${subscriberId}`);
-        }
-
-        if (enviarCardapio) {
-          // Envia direto via Graph API (assumindo que subscriberId corresponde ao ID do Instagram).
-          // Isso é independente da resposta de texto, que o ManyChat envia separadamente.
-          await sendInstagramFile(subscriberId, 'https://hubatendimento.com.br/cardapio.pdf');
         }
 
         return res.status(200).json({ reply: replyText });
@@ -81,8 +75,9 @@ export default async function handler(req, res) {
 const PROMPT_COMUM = `Seja direto e simpático, como um atendente real escreveria, sem formalidade excessiva.
 Nunca invente serviço, item, preço ou prazo que não está listado abaixo.
 Se o cliente pedir algo que não está na lista, diga que não tem e sugira algo parecido.
-Se a dúvida for sobre reclamação ou algo fora do seu escopo, diga que vai chamar o responsável.
-Responda de forma curta, como em uma conversa real de WhatsApp/Instagram, sem parágrafos longos.`;
+Responda de forma curta, como em uma conversa real de WhatsApp/Instagram, sem parágrafos longos.
+Se o cliente pedir explicitamente pra falar com uma pessoa/humano/responsável, OU fizer uma pergunta fora do seu escopo (reclamação, negociação de preço fora do padrão, pedido muito específico que você não tem informação pra responder), diga que vai chamar o responsável pra continuar, e ADICIONE no final da resposta este bloco, exatamente assim:
+###CHAMAR_HUMANO###`;
 
 const PROMPT_DELIVERY = `Você é o atendente virtual de um negócio de delivery, via Instagram.
 
@@ -97,8 +92,7 @@ REGRAS DO PEDIDO:
 {"itens":["nome do item"],"total":0,"nome":"Nome do cliente","endereco":"Endereço completo","pagamento":"forma de pagamento"}
 ###FIM###
 - Se ainda faltar alguma informação, NÃO inclua esse bloco, apenas continue perguntando
-- Se o cliente pedir o cardápio em PDF, foto, arquivo, ou perguntar se você "tem o cardápio pra mandar", responda confirmando que vai enviar, e ADICIONE no final da resposta este bloco, exatamente assim:
-###ENVIAR_CARDAPIO###
+- Se o cliente pedir o cardápio, responda listando os itens em texto mesmo, direto na conversa
 - Se o cliente pedir pra CANCELAR um pedido que já foi confirmado antes (você vai ver isso no histórico da conversa), responda confirmando o cancelamento de forma simpática, e ADICIONE no final da resposta este bloco, exatamente assim:
 ###CANCELAR###
 - Se o cliente disser "cancelar" mas ainda não tinha confirmado nenhum pedido na conversa, apenas confirme que não há nada pra cancelar, sem incluir nenhum bloco`;
@@ -108,8 +102,8 @@ const PROMPT_AGENDAMENTO = `Você é o atendente virtual de um profissional que 
 ${PROMPT_COMUM}
 
 REGRAS DO AGENDAMENTO:
-- Você recebe abaixo, em "HORÁRIOS JÁ OCUPADOS", a agenda real do profissional. NUNCA sugira ou aceite um horário que esteja nessa lista
-- Se o cliente pedir um horário que já está ocupado, diga que não está disponível e sugira 2-3 horários livres próximos, dentro do horário de atendimento
+- Você recebe abaixo, em "HORÁRIOS JÁ OCUPADOS", a agenda real do profissional, e em "DIAS BLOQUEADOS", os dias em que ele não atende (folga, viagem, etc). NUNCA sugira ou aceite um horário que esteja ocupado, nem nenhum horário num dia bloqueado
+- Se o cliente pedir um horário ocupado ou um dia bloqueado, diga que não está disponível e sugira 2-3 horários livres próximos, dentro do horário de atendimento
 - Ao confirmar um agendamento, sempre peça nome, data/horário desejado e forma de pagamento (ou valor de sinal, se houver) antes de confirmar
 - Se você já souber o nome ou forma de pagamento do cliente (informado abaixo em "DADOS JÁ CONHECIDOS DESTE CLIENTE"), NÃO pergunte de novo, apenas confirme rapidamente
 - Considere a sessão com duração de 1 hora, salvo se a descrição do serviço indicar outra duração
@@ -159,7 +153,10 @@ function montarSystemPrompt(negocio, cliente, horariosOcupados) {
     const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
     const ocupadosTexto = horariosOcupados && horariosOcupados.length
       ? horariosOcupados.join('\n')
-      : '(nenhum horário ocupado encontrado, ou agenda ainda não conectada)';
+      : '(nenhum horário ocupado encontrado)';
+    const bloqueadosTexto = negocio.diasBloqueados && negocio.diasBloqueados.length
+      ? negocio.diasBloqueados.map(d => `- ${new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: '2-digit', month: '2-digit' })}`).join('\n')
+      : '(nenhum dia bloqueado)';
 
     return `${promptBase}
 
@@ -171,7 +168,10 @@ ${listaTexto}
 HORÁRIO DE ATENDIMENTO: ${negocio.horario}
 
 HORÁRIOS JÁ OCUPADOS (próximos 14 dias):
-${ocupadosTexto}${blocoCliente}`;
+${ocupadosTexto}
+
+DIAS BLOQUEADOS (não atende nesses dias):
+${bloqueadosTexto}${blocoCliente}`;
   }
 
   return `${promptBase}
@@ -223,7 +223,8 @@ async function processarMensagem(subscriberId, mensagemDoCliente) {
 
     if (!response.ok) {
       console.error('Erro na API do Gemini:', JSON.stringify(data));
-      return { replyText: 'Desculpa, tive um problema aqui pra processar sua mensagem. Pode repetir?', pedidoFechado: null };
+      await registrarErroSistema(subscriberId, mensagemDoCliente, `Gemini retornou erro: ${JSON.stringify(data).slice(0, 200)}`);
+      return { replyText: 'Desculpa, tive um problema aqui pra processar sua mensagem. Pode repetir?', pedidoFechado: null, pedidoCancelado: false, chamarHumano: false, tipoNegocio: negocio.tipo || 'delivery' };
     }
 
     const textoCompleto = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Desculpa, não consegui entender. Pode reformular?';
@@ -248,10 +249,11 @@ async function processarMensagem(subscriberId, mensagemDoCliente) {
       replyText = replyText.replace('###CANCELAR###', '').trim();
     }
 
-    let enviarCardapio = false;
-    if (textoCompleto.includes('###ENVIAR_CARDAPIO###')) {
-      enviarCardapio = true;
-      replyText = replyText.replace('###ENVIAR_CARDAPIO###', '').trim();
+    let chamarHumano = false;
+    if (textoCompleto.includes('###CHAMAR_HUMANO###')) {
+      chamarHumano = true;
+      replyText = replyText.replace('###CHAMAR_HUMANO###', '').trim();
+      await registrarAlertaHumano(subscriberId, cliente?.nome, mensagemDoCliente);
     }
 
     // Atualiza o histórico (mensagem do cliente + resposta da IA, sem os blocos de controle) e salva
@@ -261,10 +263,11 @@ async function processarMensagem(subscriberId, mensagemDoCliente) {
     ];
     await salvarHistorico(subscriberId, novoHistorico);
 
-    return { replyText, pedidoFechado, pedidoCancelado, enviarCardapio, tipoNegocio: negocio.tipo || 'delivery' };
+    return { replyText, pedidoFechado, pedidoCancelado, chamarHumano, tipoNegocio: negocio.tipo || 'delivery' };
   } catch (err) {
     console.error('Erro ao chamar a IA:', err);
-    return { replyText: 'Desculpa, tive um problema aqui pra processar sua mensagem. Pode repetir?', pedidoFechado: null, pedidoCancelado: false, enviarCardapio: false, tipoNegocio: 'delivery' };
+    await registrarErroSistema(subscriberId, mensagemDoCliente, err.message || String(err));
+    return { replyText: 'Desculpa, tive um problema aqui pra processar sua mensagem. Pode repetir?', pedidoFechado: null, pedidoCancelado: false, chamarHumano: false, tipoNegocio: 'delivery' };
   }
 }
 
@@ -347,6 +350,26 @@ async function buscarNegocio() {
   }
 }
 
+async function registrarErroSistema(subscriberId, mensagem, detalhe) {
+  try {
+    const registro = { subscriberId, mensagem, detalhe, criadoEm: new Date().toISOString() };
+    await redisCommand(['LPUSH', 'erros_sistema', JSON.stringify(registro)]);
+    await redisCommand(['LTRIM', 'erros_sistema', '0', '19']); // mantém só os 20 mais recentes
+  } catch (err) {
+    console.error('Erro ao registrar erro do sistema:', err);
+  }
+}
+
+async function registrarAlertaHumano(subscriberId, nomeConhecido, mensagem) {
+  try {
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const registro = { id, subscriberId, nome: nomeConhecido || null, mensagem, status: 'pendente', criadoEm: new Date().toISOString() };
+    await redisCommand(['LPUSH', 'alertas_humano', JSON.stringify(registro)]);
+  } catch (err) {
+    console.error('Erro ao registrar alerta de humano:', err);
+  }
+}
+
 // --- Disponibilidade de agenda, usando os próprios agendamentos salvos no sistema ---
 
 async function buscarHorariosOcupadosInterno() {
@@ -395,24 +418,6 @@ async function cancelarUltimoPedido(subscriberId) {
   } catch (err) {
     console.error('Erro ao cancelar pedido:', err);
     return false;
-  }
-}
-
-async function sendInstagramFile(recipientId, fileUrl) {
-  const url = `https://graph.instagram.com/v21.0/me/messages?access_token=${process.env.IG_ACCESS_TOKEN}`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      recipient: { id: recipientId },
-      message: { attachment: { type: 'file', payload: { url: fileUrl } } },
-    }),
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    console.error('Erro ao enviar arquivo pro Instagram:', errorBody);
   }
 }
 
