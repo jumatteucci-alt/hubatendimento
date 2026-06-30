@@ -8,7 +8,7 @@
 <style>
   :root{
     --ink:#12131a; --ink-2:#1b1d27; --paper:#f2efe9; --paper-dim:#c9c6bf;
-    --coral:#ff6b4a; --green:#5ee69b; --line: rgba(242,239,233,0.12);
+    --coral:#ff6b4a; --green:#5ee69b; --violet:#9a9eff; --line: rgba(242,239,233,0.12);
   }
   *{ box-sizing:border-box; }
   body{
@@ -73,6 +73,7 @@
   .badge-cancelado{ background:rgba(255,107,74,0.15); color:var(--coral); }
   .badge-entrega{ background:rgba(94,230,155,0.15); color:var(--green); }
   .badge-finalizado{ background:rgba(201,198,191,0.15); color:var(--paper-dim); }
+  .badge-lead{ background:rgba(154,158,255,0.15); color:var(--violet); }
   .pedido-acoes{ display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
   .btn-acao{
     border:1px solid var(--line); background:transparent; color:var(--paper);
@@ -250,12 +251,19 @@
         : 'Seu pedido saiu para entrega! 🛵 Chega em breve.';
 
       let badge = '';
-      if (p.status === 'cancelado') badge = '<span class="badge badge-cancelado">Cancelado</span>';
+      if (p.status === 'lead') badge = '<span class="badge badge-lead">Lead, ainda não comprou</span>';
+      else if (p.status === 'cancelado') badge = '<span class="badge badge-cancelado">Cancelado</span>';
       else if (p.status === 'em_entrega') badge = `<span class="badge badge-entrega">${agendamento ? 'Confirmado' : 'Em entrega'}</span>`;
       else if (p.status === 'finalizado') badge = '<span class="badge badge-finalizado">Finalizado</span>';
 
       let acoes = '';
-      if (p.status === 'ativo') {
+      if (p.status === 'lead') {
+        acoes = `
+          <div class="pedido-acoes">
+            <button class="btn-acao reset" onclick="resetarConversa('${p.subscriberId}')">Reiniciar conversa</button>
+            <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
+          </div>`;
+      } else if (p.status === 'ativo') {
         acoes = `
           <div class="pedido-acoes">
             <button class="btn-acao entrega" onclick="executarAcao('${p.id}', 'entregando')">${labelAcaoEntrega}</button>
@@ -300,7 +308,8 @@
             ${metaHtml}
           </div>
           <div class="pedido-hora mono">${hora}</div>
-          ${produtoDigital ? '<div class="pedido-hora" style="margin-top:2px;">Compra informada pelo próprio cliente na conversa, não confirmada via pagamento.</div>' : ''}
+          ${produtoDigital && p.status === 'lead' ? '<div class="pedido-hora" style="margin-top:2px;">Contato em andamento, ainda não confirmou a compra.</div>' : ''}
+          ${produtoDigital && p.status !== 'lead' ? '<div class="pedido-hora" style="margin-top:2px;">Compra informada pelo próprio cliente na conversa, não confirmada via pagamento.</div>' : ''}
           ${acoes}
         </div>
       `;

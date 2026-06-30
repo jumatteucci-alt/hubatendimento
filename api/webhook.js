@@ -31,11 +31,16 @@ export default async function handler(req, res) {
 
         console.log(`[ManyChat] Mensagem de ${subscriberId}: ${userText}`);
 
-        const { replyText, pedidoFechado, pedidoCancelado, tipoNegocio } = await processarMensagem(subscriberId, userText);
+        const { replyText, pedidoFechado, leadCapturado, pedidoCancelado, tipoNegocio } = await processarMensagem(subscriberId, userText);
+
+        if (leadCapturado) {
+          await registrarOuAtualizarLead(subscriberId, leadCapturado, tipoNegocio);
+          console.log('Lead registrado/atualizado:', JSON.stringify(leadCapturado));
+        }
 
         if (pedidoFechado) {
-          await salvarPedido(subscriberId, pedidoFechado, tipoNegocio);
-          console.log('Pedido salvo:', JSON.stringify(pedidoFechado));
+          await confirmarCompraLead(subscriberId, pedidoFechado, tipoNegocio);
+          console.log('Compra confirmada:', JSON.stringify(pedidoFechado));
         }
 
         if (pedidoCancelado) {
@@ -127,6 +132,11 @@ REGRAS DA VENDA:
 - Sempre conduza a conversa em direção à compra. Mesmo respondendo dúvidas, retome o argumento de venda e busque o fechamento, sem ser repetitivo ou insistente a ponto de incomodar
 - Antes de mandar o link de checkout, você precisa coletar, um por um, exatamente os campos listados em "DADOS A COLETAR" abaixo. Não pule nenhum, e não peça nada além do que está nessa lista
 - Se algum desses dados já for conhecido do cliente (informado em "DADOS JÁ CONHECIDOS DESTE CLIENTE"), não pergunte de novo, só confirme rapidamente
+- Assim que você já souber pelo menos o nome e o telefone/WhatsApp do cliente (mesmo que outros campos da lista ainda faltem), ADICIONE no final da resposta este bloco, pra registrar o contato como lead, e continue normalmente coletando o que falta na mesma mensagem ou nas seguintes:
+###LEAD###
+{"itens":["nome do produto"],"total":0,"dados":{"Nome do campo 1":"valor informado","Nome do campo 2":"valor informado"}}
+###FIM###
+- Inclua o bloco ###LEAD### de novo sempre que coletar um dado novo do cliente, com todos os dados já conhecidos atualizados (não só o que faltava), pra manter o registro completo
 - Quando TODOS os campos de "DADOS A COLETAR" já tiverem sido respondidos, envie o "LINK DE CHECKOUT" abaixo pro cliente, explicando que é por ali que ele finaliza a compra
 - IMPORTANTE: você NUNCA pode dizer que a compra foi concluída ou confirmada, porque o pagamento acontece fora dessa conversa, no link de checkout, e só o cliente sabe se finalizou ou não
 - Depois de mandar o link de checkout, em mensagens seguintes, pergunte se o cliente já concluiu a compra por ali
@@ -135,7 +145,7 @@ REGRAS DA VENDA:
 {"itens":["nome do produto"],"total":0,"dados":{"Nome do campo 1":"valor informado","Nome do campo 2":"valor informado"}}
 ###FIM###
 - As chaves dentro de "dados" devem ser EXATAMENTE os nomes dos campos listados em "DADOS A COLETAR", e os valores são o que o cliente respondeu
-- NUNCA inclua esse bloco antes do cliente confirmar explicitamente que concluiu a compra. Só coletar os dados e mandar o link não é suficiente
+- NUNCA inclua o bloco ###PEDIDO### antes do cliente confirmar explicitamente que concluiu a compra. Só coletar os dados e mandar o link não é suficiente pra isso, use ###LEAD### nesse caso
 - Se o cliente pedir pra CANCELAR uma compra já confirmada antes (você vai ver isso no histórico da conversa), responda confirmando o cancelamento de forma simpática, e ADICIONE no final da resposta este bloco, exatamente assim:
 ###CANCELAR###
 - Se o cliente disser "cancelar" mas ainda não tinha confirmado nenhuma compra na conversa, apenas confirme que não há nada pra cancelar, sem incluir nenhum bloco`;
@@ -296,9 +306,10 @@ async function processarMensagem(subscriberId, mensagemDoCliente) {
 
     const textoCompleto = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Desculpa, não consegui entender. Pode reformular?';
 
-    // Extrai o bloco de pedido ou de cancelamento, se existir, e limpa o texto antes de mandar pro cliente
+    // Extrai o bloco de pedido, lead ou cancelamento, se existir, e limpa o texto antes de mandar pro cliente
     let replyText = textoCompleto;
     let pedidoFechado = null;
+    let leadCapturado = null;
     let pedidoCancelado = false;
 
     const matchPedido = textoCompleto.match(/###PEDIDO###([\s\S]*?)###FIM###/);
@@ -309,6 +320,16 @@ async function processarMensagem(subscriberId, mensagemDoCliente) {
         console.error('Não foi possível parsear o bloco de pedido:', matchPedido[1]);
       }
       replyText = replyText.replace(/###PEDIDO###[\s\S]*?###FIM###/, '').trim();
+    }
+
+    const matchLead = textoCompleto.match(/###LEAD###([\s\S]*?)###FIM###/);
+    if (matchLead) {
+      try {
+        leadCapturado = JSON.parse(matchLead[1].trim());
+      } catch (e) {
+        console.error('Não foi possível parsear o bloco de lead:', matchLead[1]);
+      }
+      replyText = replyText.replace(/###LEAD###[\s\S]*?###FIM###/, '').trim();
     }
 
     if (textoCompleto.includes('###CANCELAR###')) {
@@ -330,11 +351,11 @@ async function processarMensagem(subscriberId, mensagemDoCliente) {
     ];
     await salvarHistorico(subscriberId, novoHistorico);
 
-    return { replyText, pedidoFechado, pedidoCancelado, chamarHumano, tipoNegocio: negocio.tipo || 'delivery' };
+    return { replyText, pedidoFechado, leadCapturado, pedidoCancelado, chamarHumano, tipoNegocio: negocio.tipo || 'delivery' };
   } catch (err) {
     console.error('Erro ao chamar a IA:', err);
     await registrarErroSistema(subscriberId, mensagemDoCliente, err.message || String(err));
-    return { replyText: 'Desculpa, tive um problema aqui pra processar sua mensagem. Pode repetir?', pedidoFechado: null, pedidoCancelado: false, chamarHumano: false, tipoNegocio: 'delivery' };
+    return { replyText: 'Desculpa, tive um problema aqui pra processar sua mensagem. Pode repetir?', pedidoFechado: null, leadCapturado: null, pedidoCancelado: false, chamarHumano: false, tipoNegocio: 'delivery' };
   }
 }
 
@@ -372,16 +393,20 @@ async function salvarHistorico(subscriberId, historico) {
   }
 }
 
+function derivarNomeDeDados(dados) {
+  if (!dados) return null;
+  const chaveNome = Object.keys(dados).find(k => k.toLowerCase().includes('nome'));
+  return chaveNome ? dados[chaveNome] : Object.values(dados)[0];
+}
+
 async function salvarPedido(subscriberId, pedido, tipo) {
   try {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
-    // Pra produto digital, os dados vêm livres em "dados" (objeto). Derivamos um "nome" pra exibição
-    // pegando o primeiro valor que pareça nome (ou o primeiro campo, se nenhum bater).
+    // Pra produto digital, os dados vêm livres em "dados" (objeto). Derivamos um "nome" pra exibição.
     let nomeExibicao = pedido.nome;
     if (tipo === 'produto_digital' && pedido.dados) {
-      const chaveNome = Object.keys(pedido.dados).find(k => k.toLowerCase().includes('nome'));
-      nomeExibicao = chaveNome ? pedido.dados[chaveNome] : Object.values(pedido.dados)[0];
+      nomeExibicao = derivarNomeDeDados(pedido.dados);
     }
 
     const registro = { ...pedido, nome: nomeExibicao, id, subscriberId, tipo: tipo || 'delivery', status: 'ativo', criadoEm: new Date().toISOString() };
@@ -389,6 +414,70 @@ async function salvarPedido(subscriberId, pedido, tipo) {
     await salvarCliente(subscriberId, registro, tipo);
   } catch (err) {
     console.error('Erro ao salvar pedido:', err);
+  }
+}
+
+// Cria ou atualiza um registro de lead (produto digital) enquanto a conversa ainda não fechou venda.
+// Usa o mesmo subscriberId pra não duplicar registros a cada novo dado coletado.
+async function registrarOuAtualizarLead(subscriberId, pedido, tipo) {
+  try {
+    const resultado = await redisCommand(['LRANGE', 'pedidos', '0', '199']);
+    const lista = resultado?.result || [];
+
+    for (let i = 0; i < lista.length; i++) {
+      const registro = JSON.parse(lista[i]);
+      if (registro.subscriberId === subscriberId && registro.tipo === tipo && !['finalizado', 'cancelado'].includes(registro.status)) {
+        const dadosMesclados = { ...(registro.dados || {}), ...(pedido.dados || {}) };
+        const atualizado = { ...registro, itens: pedido.itens || registro.itens, dados: dadosMesclados, nome: derivarNomeDeDados(dadosMesclados) || registro.nome };
+        await redisCommand(['LSET', 'pedidos', String(i), JSON.stringify(atualizado)]);
+        await salvarCliente(subscriberId, atualizado, tipo);
+        return;
+      }
+    }
+
+    // Não achou registro existente, cria um novo já como "lead"
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const registro = { ...pedido, nome: derivarNomeDeDados(pedido.dados), id, subscriberId, tipo, status: 'lead', criadoEm: new Date().toISOString() };
+    await redisCommand(['LPUSH', 'pedidos', JSON.stringify(registro)]);
+    await salvarCliente(subscriberId, registro, tipo);
+  } catch (err) {
+    console.error('Erro ao registrar lead:', err);
+  }
+}
+
+// Promove um lead existente pra "venda confirmada" (status ativo), ou cria um registro novo se não achar lead prévio.
+async function confirmarCompraLead(subscriberId, pedido, tipo) {
+  if (tipo !== 'produto_digital') {
+    return salvarPedido(subscriberId, pedido, tipo);
+  }
+  try {
+    const resultado = await redisCommand(['LRANGE', 'pedidos', '0', '199']);
+    const lista = resultado?.result || [];
+
+    for (let i = 0; i < lista.length; i++) {
+      const registro = JSON.parse(lista[i]);
+      if (registro.subscriberId === subscriberId && registro.tipo === tipo && !['finalizado', 'cancelado'].includes(registro.status)) {
+        const dadosMesclados = { ...(registro.dados || {}), ...(pedido.dados || {}) };
+        const atualizado = {
+          ...registro,
+          itens: pedido.itens || registro.itens,
+          dados: dadosMesclados,
+          nome: derivarNomeDeDados(dadosMesclados) || registro.nome,
+          status: 'ativo',
+          compraConfirmadaEm: new Date().toISOString(),
+        };
+        await redisCommand(['LSET', 'pedidos', String(i), JSON.stringify(atualizado)]);
+        await salvarCliente(subscriberId, atualizado, tipo);
+        return;
+      }
+    }
+
+    // Sem lead anterior (caso raro, cliente confirmou tudo numa mensagem só) — cria direto como venda confirmada
+    await salvarPedido(subscriberId, pedido, tipo);
+  } catch (err) {
+    console.error('Erro ao confirmar compra:', err);
+  }
+}
   }
 }
 
