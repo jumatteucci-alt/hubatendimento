@@ -184,7 +184,7 @@
       if (!resp.ok) return false;
       const data = await resp.json();
       renderizar(data.pedidos || []);
-      renderizarBanners(data.alertas || [], data.erros || []);
+      renderizarBanners(data.alertas || [], data.erros || [], data.avisoToken || null);
       return true;
     } catch (err) {
       console.error(err);
@@ -192,9 +192,17 @@
     }
   }
 
-  function renderizarBanners(alertas, erros) {
+  function renderizarBanners(alertas, erros, avisoToken) {
     const container = document.getElementById('banners');
     let html = '';
+
+    if (avisoToken) {
+      html += `
+        <div class="banner banner-alerta">
+          <div class="banner-titulo"><span>⚠️ Token do Instagram expirando em breve</span></div>
+          <div>${escapeHtml(avisoToken)}</div>
+        </div>`;
+    }
 
     alertas.forEach(a => {
       html += `

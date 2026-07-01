@@ -35,7 +35,17 @@ export default async function handler(req, res) {
     const brutoErros = (await redisCommand(['LRANGE', `n:${negocioId}:erros_sistema`, '0', '4']))?.result || [];
     const erros = brutoErros.map(e => JSON.parse(e));
 
-    return res.status(200).json({ pedidos, alertas, erros });
+    // Verifica se o token do Instagram está próximo de expirar (menos de 15 dias)
+    let avisoToken = null;
+    const tokenExpira = (await redisCommand(['GET', 'ig_token_expira_em']))?.result;
+    if (tokenExpira) {
+      const diasRestantes = Math.floor((new Date(tokenExpira) - Date.now()) / (1000 * 60 * 60 * 24));
+      if (diasRestantes <= 15) {
+        avisoToken = `Token do Instagram expira em ${diasRestantes} dia(s). Acesse /api/renovar-token?admin_senha=SUA_SENHA pra renovar agora.`;
+      }
+    }
+
+    return res.status(200).json({ pedidos, alertas, erros, avisoToken });
   } catch (err) {
     console.error('Erro ao buscar pedidos:', err);
     return res.status(500).json({ error: 'Erro ao buscar pedidos' });

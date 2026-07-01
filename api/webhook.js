@@ -573,8 +573,19 @@ async function registrarAlertaHumano(negocioId, subscriberId, nomeConhecido, men
 
 // ─── Instagram ───────────────────────────────────────────────────────────────
 
+async function obterTokenInstagram() {
+  try {
+    // Lê o token do Redis (renovado automaticamente), com fallback pro env var
+    const resultado = await redisCommand(['GET', 'ig_access_token']);
+    return resultado?.result || process.env.IG_ACCESS_TOKEN;
+  } catch (err) {
+    return process.env.IG_ACCESS_TOKEN;
+  }
+}
+
 async function sendInstagramReply(recipientId, text) {
-  const url = `https://graph.instagram.com/v21.0/me/messages?access_token=${process.env.IG_ACCESS_TOKEN}`;
+  const token = await obterTokenInstagram();
+  const url = `https://graph.instagram.com/v21.0/me/messages?access_token=${token}`;
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
