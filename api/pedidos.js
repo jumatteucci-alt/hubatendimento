@@ -45,7 +45,10 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({ pedidos, alertas, erros, avisoToken });
+    // Estado de pausa
+    const pausado = (await redisCommand(['GET', `n:${negocioId}:pausado`]))?.result === '1';
+
+    return res.status(200).json({ pedidos, alertas, erros, avisoToken, pausado });
   } catch (err) {
     console.error('Erro ao buscar pedidos:', err);
     return res.status(500).json({ error: 'Erro ao buscar pedidos' });

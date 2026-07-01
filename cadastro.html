@@ -59,6 +59,12 @@
   .chip-bloqueio button{
     background:transparent; border:none; color:var(--coral); padding:2px 6px; font-size:0.85rem; cursor:pointer;
   }
+  .dia-check{ display:flex; align-items:center; gap:6px; font-size:0.85rem; cursor:pointer;
+    background:var(--ink); border:1px solid var(--line); border-radius:8px; padding:7px 12px; }
+  .dia-check input[type="checkbox"]{ accent-color:var(--coral); width:14px; height:14px; }
+  .item-row{ display:grid; grid-template-columns:2fr 1fr 2fr auto auto; gap:10px; margin-bottom:10px; align-items:start; }
+  .toggle-disponivel{ display:flex; align-items:center; gap:6px; font-size:0.8rem; color:var(--paper-dim); padding-top:10px; }
+  .toggle-disponivel input[type="checkbox"]{ accent-color:var(--green); width:14px; height:14px; }
 
   #save-status{ font-size:0.85rem; color:var(--green); min-height:18px; margin-top:10px; }
 
@@ -106,8 +112,8 @@
     </div>
     <div class="grid-2">
       <div class="field">
-        <label for="horario" id="label-horario">Horário de funcionamento</label>
-        <input type="text" id="horario" placeholder="Ex: 18h às 23h, todos os dias">
+        <label for="horario" id="label-horario">Horário de funcionamento (descrição pro cliente)</label>
+        <input type="text" id="horario" placeholder="Ex: 18h às 23h, seg a sáb">
       </div>
       <div class="field" id="campo-tempoMedio">
         <label for="tempoMedio">Tempo médio de entrega</label>
@@ -117,6 +123,31 @@
     <div class="field" id="campo-taxaEntrega">
       <label for="taxaEntrega">Taxa de entrega (R$)</label>
       <input type="number" step="0.01" id="taxaEntrega">
+    </div>
+
+    <div class="field" id="campo-horario-estruturado">
+      <label>Horário de funcionamento (para controle automático)</label>
+      <p style="font-size:0.82rem;color:var(--paper-dim);margin-bottom:10px;">O bot vai recusar pedidos fora desse horário. Deixe em branco se quiser aceitar a qualquer hora.</p>
+      <div class="grid-2" style="margin-bottom:10px;">
+        <div class="field">
+          <label for="abreAs">Abre às</label>
+          <input type="time" id="abreAs">
+        </div>
+        <div class="field">
+          <label for="fechaAs">Fecha às</label>
+          <input type="time" id="fechaAs">
+        </div>
+      </div>
+      <label style="margin-bottom:8px;">Dias de funcionamento</label>
+      <div id="dias-semana" style="display:flex;gap:8px;flex-wrap:wrap;">
+        <label class="dia-check"><input type="checkbox" value="0"> Dom</label>
+        <label class="dia-check"><input type="checkbox" value="1"> Seg</label>
+        <label class="dia-check"><input type="checkbox" value="2"> Ter</label>
+        <label class="dia-check"><input type="checkbox" value="3"> Qua</label>
+        <label class="dia-check"><input type="checkbox" value="4"> Qui</label>
+        <label class="dia-check"><input type="checkbox" value="5"> Sex</label>
+        <label class="dia-check"><input type="checkbox" value="6"> Sáb</label>
+      </div>
     </div>
   </div>
 
@@ -286,6 +317,8 @@
     document.getElementById('tipo').value = negocio.tipo || 'delivery';
     document.getElementById('nome').value = negocio.nome || '';
     document.getElementById('horario').value = negocio.horario || '';
+    document.getElementById('abreAs').value = negocio.abreAs || '';
+    document.getElementById('fechaAs').value = negocio.fechaAs || '';
     document.getElementById('tempoMedio').value = negocio.tempoMedio || '';
     document.getElementById('taxaEntrega').value = negocio.taxaEntrega ?? '';
     document.getElementById('nomeProduto').value = negocio.nomeProduto || '';
@@ -293,6 +326,13 @@
     document.getElementById('linkCheckout').value = negocio.linkCheckout || '';
     document.getElementById('descricaoOferta').value = negocio.descricaoOferta || '';
     document.getElementById('textoPersuasivo').value = negocio.textoPersuasivo || '';
+
+    // Preenche dias da semana
+    const diasAbertos = negocio.diasAbertos || [];
+    document.querySelectorAll('#dias-semana input[type="checkbox"]').forEach(cb => {
+      cb.checked = diasAbertos.includes(Number(cb.value));
+    });
+
     aplicarTipo();
 
     const lista = document.getElementById('itens-lista');
@@ -310,10 +350,14 @@
     const lista = document.getElementById('itens-lista');
     const row = document.createElement('div');
     row.className = 'item-row';
+    const disponivel = item.disponivel !== false; // true por padrão
     row.innerHTML = `
       <input type="text" placeholder="Nome do item" class="item-nome" value="${escapeAttr(item.nome || '')}">
       <input type="number" step="0.01" placeholder="Preço" class="item-preco" value="${item.preco ?? ''}">
       <input type="text" placeholder="Descrição (opcional)" class="item-descricao" value="${escapeAttr(item.descricao || '')}">
+      <label class="toggle-disponivel" title="Disponível para pedidos">
+        <input type="checkbox" class="item-disponivel" ${disponivel ? 'checked' : ''}> Disp.
+      </label>
       <button type="button" title="Remover">✕</button>
     `;
     row.querySelector('button').addEventListener('click', () => row.remove());
@@ -329,15 +373,20 @@
       nome: row.querySelector('.item-nome').value.trim(),
       preco: parseFloat(row.querySelector('.item-preco').value) || 0,
       descricao: row.querySelector('.item-descricao').value.trim(),
+      disponivel: row.querySelector('.item-disponivel').checked,
     })).filter(i => i.nome);
 
     const diasBloqueados = Array.from(document.querySelectorAll('#bloqueios-lista .chip-bloqueio')).map(c => c.dataset.data).sort();
     const camposColeta = Array.from(document.querySelectorAll('#campos-coleta-lista .chip-bloqueio')).map(c => c.dataset.campo);
+    const diasAbertos = Array.from(document.querySelectorAll('#dias-semana input:checked')).map(c => Number(c.value));
 
     const negocio = {
       tipo: document.getElementById('tipo').value,
       nome: document.getElementById('nome').value.trim(),
       horario: document.getElementById('horario').value.trim(),
+      abreAs: document.getElementById('abreAs').value || null,
+      fechaAs: document.getElementById('fechaAs').value || null,
+      diasAbertos: diasAbertos.length ? diasAbertos : null,
       tempoMedio: document.getElementById('tempoMedio').value.trim(),
       taxaEntrega: parseFloat(document.getElementById('taxaEntrega').value) || 0,
       itens,

@@ -153,7 +153,10 @@
   </nav>
   <div class="panel-head">
     <h1>Pedidos</h1>
-    <div class="status-line"><span class="live-dot"></span> atualizando automaticamente</div>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <button id="btn-pausa" onclick="alternarPausa()" style="border:1px solid var(--coral);background:transparent;color:var(--coral);font-size:0.82rem;padding:7px 14px;border-radius:7px;cursor:pointer;display:none;">⏸ Pausar atendimento</button>
+      <div class="status-line"><span class="live-dot"></span> atualizando automaticamente</div>
+    </div>
   </div>
   <div id="banners"></div>
   <div id="lista-pedidos"></div>
@@ -205,6 +208,8 @@
     document.getElementById('login-screen').classList.add('visivel');
   }
 
+  let estaAtualmentePausado = false;
+
   async function buscarPedidos(senha) {
     try {
       const resp = await fetch(`/api/pedidos?negocio_id=${negocioId}&senha=` + encodeURIComponent(senha));
@@ -212,10 +217,46 @@
       const data = await resp.json();
       renderizar(data.pedidos || []);
       renderizarBanners(data.alertas || [], data.erros || [], data.avisoToken || null);
+      atualizarBotaoPausa(data.pausado || false);
       return true;
     } catch (err) {
       console.error(err);
       return false;
+    }
+  }
+
+  function atualizarBotaoPausa(pausado) {
+    estaAtualmentePausado = pausado;
+    const btn = document.getElementById('btn-pausa');
+    btn.style.display = 'block';
+    if (pausado) {
+      btn.textContent = '▶ Retomar atendimento';
+      btn.style.borderColor = 'var(--green)';
+      btn.style.color = 'var(--green)';
+    } else {
+      btn.textContent = '⏸ Pausar atendimento';
+      btn.style.borderColor = 'var(--coral)';
+      btn.style.color = 'var(--coral)';
+    }
+  }
+
+  async function alternarPausa() {
+    const acao = estaAtualmentePausado ? 'retomar' : 'pausar';
+    const confirma = acao === 'pausar'
+      ? confirm('Pausar o atendimento? O bot vai responder que está temporariamente fora do ar.')
+      : confirm('Retomar o atendimento? O bot voltará a responder normalmente.');
+    if (!confirma) return;
+
+    try {
+      const resp = await fetch('/api/pedido-acao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senha: senhaAtual, negocio_id: negocioId, acao }),
+      });
+      if (!resp.ok) { alert('Não foi possível alterar o estado.'); return; }
+      atualizarBotaoPausa(acao === 'pausar');
+    } catch (err) {
+      alert('Erro ao alterar o estado do atendimento.');
     }
   }
 

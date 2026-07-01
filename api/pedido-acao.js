@@ -11,6 +11,12 @@ export default async function handler(req, res) {
   if (!senhaValida) return res.status(401).json({ error: 'Senha inválida' });
 
   try {
+    if (acao === 'pausar' || acao === 'retomar') {
+      const valor = acao === 'pausar' ? '1' : '0';
+      await redisCommand(['SET', `n:${negocioId}:pausado`, valor]);
+      return res.status(200).json({ ok: true, pausado: acao === 'pausar' });
+    }
+
     if (acao === 'resetar_conversa') {
       if (!subscriberId) return res.status(400).json({ error: 'subscriberId é obrigatório' });
       await redisCommand(['DEL', `n:${negocioId}:historico:${subscriberId}`]);

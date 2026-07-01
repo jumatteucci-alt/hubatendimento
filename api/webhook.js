@@ -25,13 +25,27 @@ export default async function handler(req, res) {
       if (body.source === 'manychat') {
         const userText     = body.text || '';
         const subscriberId = body.subscriber_id || 'desconhecido';
-        // negocio_id obrigatório — cada Flow do ManyChat deve ter seu próprio valor fixo
         const negocioId    = body.negocio_id || 'default';
 
         console.log(`[ManyChat][${negocioId}] Mensagem de ${subscriberId}: ${userText}`);
 
+        // Verifica se o negócio está pausado
+        const pausado = await estaAtendimentoPausado(negocioId);
+        if (pausado) {
+          console.log(`[${negocioId}] Atendimento pausado — mensagem não processada`);
+          return res.status(200).json({ reply: 'Estamos temporariamente fora do ar. Em breve voltamos ao atendimento! 🙏' });
+        }
+
+        // Verifica se está dentro do horário de funcionamento
+        const negocio = await buscarNegocio(negocioId);
+        if (!verificarHorario(negocio)) {
+          console.log(`[${negocioId}] Fora do horário de funcionamento`);
+          const msgFechado = montarMensagemFechado(negocio);
+          return res.status(200).json({ reply: msgFechado });
+        }
+
         const { replyText, pedidoFechado, leadCapturado, pedidoCancelado, tipoNegocio } =
-          await processarMensagem(negocioId, subscriberId, userText);
+          await processarMensagem(negocioId, subscriberId, userText, negocio);
 
         if (leadCapturado) {
           await registrarOuAtualizarLead(negocioId, subscriberId, leadCapturado, tipoNegocio);
@@ -183,7 +197,10 @@ function montarSystemPrompt(negocio, cliente, horariosOcupados, primeiraMensagem
     : PROMPT_DELIVERY;
 
   const listaTexto = (negocio.itens || [])
-    .map(i => `- ${i.nome} — R$ ${Number(i.preco).toFixed(2).replace('.', ',')}${i.descricao ? ' — ' + i.descricao : ''}`)
+    .map(i => {
+      const esgotado = i.disponivel === false ? ' — ⚠️ ESGOTADO (não ofereça este item)' : '';
+      return `- ${i.nome} — R$ ${Number(i.preco).toFixed(2).replace('.', ',')}${i.descricao ? ' — ' + i.descricao : ''}${esgotado}`;
+    })
     .join('\n');
 
   let blocoCliente = '';
@@ -267,14 +284,54 @@ TAXA DE ENTREGA: R$ ${Number(negocio.taxaEntrega).toFixed(2).replace('.', ',')}
 TEMPO MÉDIO: ${negocio.tempoMedio}${blocoCliente}`;
 }
 
+// ─── Horário de funcionamento e pausa ────────────────────────────────────────
+
+async function estaAtendimentoPausado(negocioId) {
+  try {
+    const resultado = await redisCommand(['GET', ns(negocioId, 'pausado')]);
+    return resultado?.result === '1';
+  } catch (err) {
+    return false;
+  }
+}
+
+function verificarHorario(negocio) {
+  // Se não tiver horário estruturado configurado, considera sempre aberto
+  if (!negocio.abreAs || !negocio.fechaAs) return true;
+
+  const agora = new Date();
+  const agoraSP = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const diaSemana = agoraSP.getDay(); // 0=Dom, 1=Seg...
+  const horaAtual = agoraSP.getHours() * 60 + agoraSP.getMinutes();
+
+  const [abreH, abreM] = negocio.abreAs.split(':').map(Number);
+  const [fechaH, fechaM] = negocio.fechaAs.split(':').map(Number);
+  const abreMin  = abreH * 60 + abreM;
+  const fechaMin = fechaH * 60 + fechaM;
+
+  // diasAbertos: array de números 0-6. Se não configurado, todos os dias
+  const diasAbertos = (negocio.diasAbertos && negocio.diasAbertos.length)
+    ? negocio.diasAbertos.map(Number)
+    : [0, 1, 2, 3, 4, 5, 6];
+
+  return diasAbertos.includes(diaSemana) && horaAtual >= abreMin && horaAtual < fechaMin;
+}
+
+function montarMensagemFechado(negocio) {
+  const horario = negocio.horario || 'confira nosso horário nas redes sociais';
+  return `Olá! No momento estamos fechados. 😴 Nosso horário de atendimento é: ${horario}. Quando abrirmos, é só mandar mensagem!`;
+}
+
 // ─── Processamento da mensagem ───────────────────────────────────────────────
 
-async function processarMensagem(negocioId, subscriberId, mensagemDoCliente) {
-  const [historico, negocio, cliente] = await Promise.all([
+async function processarMensagem(negocioId, subscriberId, mensagemDoCliente, negocioPreCarregado) {
+  const [historico, cliente] = await Promise.all([
     buscarHistorico(negocioId, subscriberId),
-    buscarNegocio(negocioId),
     buscarCliente(negocioId, subscriberId),
   ]);
+
+  // Usa o negócio já carregado se veio do handler (evita busca dupla)
+  const negocio = negocioPreCarregado || await buscarNegocio(negocioId);
 
   let horariosOcupados = [];
   if (negocio.tipo === 'agendamento') {
