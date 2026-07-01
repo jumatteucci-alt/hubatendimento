@@ -29,6 +29,9 @@ export default async function handler(req, res) {
 
         console.log(`[ManyChat][${negocioId}] Mensagem de ${subscriberId}: ${userText}`);
 
+        // Enriquece o perfil do Instagram na primeira interação (sem bloquear a resposta)
+        enriquecerPerfilInstagram(negocioId, subscriberId).catch(() => {});
+
         // Verifica se o negócio está pausado
         const pausado = await estaAtendimentoPausado(negocioId);
         if (pausado) {
@@ -472,7 +475,10 @@ async function buscarCliente(negocioId, subscriberId) {
 
 async function salvarCliente(negocioId, subscriberId, pedido, tipo) {
   try {
+    // Busca o perfil existente pra preservar dados do Instagram já salvos
+    const perfilExistente = await buscarCliente(negocioId, subscriberId);
     const perfil = {
+      ...perfilExistente,
       nome: pedido.nome,
       endereco: pedido.endereco,
       pagamento: pedido.pagamento,
@@ -482,6 +488,37 @@ async function salvarCliente(negocioId, subscriberId, pedido, tipo) {
     await redisCommand(['SET', ns(negocioId, `cliente:${subscriberId}`), JSON.stringify(perfil)]);
   } catch (err) {
     console.error('Erro ao salvar cliente:', err);
+  }
+}
+
+// Busca e salva dados do perfil do Instagram via API do ManyChat (na primeira interação)
+async function enriquecerPerfilInstagram(negocioId, subscriberId) {
+  try {
+    // Verifica se já tem perfil do Instagram salvo pra não buscar toda vez
+    const perfilAtual = await buscarCliente(negocioId, subscriberId);
+    if (perfilAtual?.instagramUsername) return; // já enriquecido
+
+    const response = await fetch(
+      `https://api.manychat.com/fb/subscriber/getInfo?subscriber_id=${subscriberId}`,
+      { headers: { Authorization: `Bearer ${process.env.MANYCHAT_API_TOKEN}` } }
+    );
+    if (!response.ok) return;
+
+    const data = await response.json();
+    const sub = data.data;
+    if (!sub) return;
+
+    const perfilInstagram = {
+      instagramUsername: sub.key || null,
+      instagramNome: sub.name || null,
+      instagramFoto: sub.profile_pic || null,
+    };
+
+    // Mescla com o que já existe no perfil
+    const perfilMesclado = { ...(perfilAtual || {}), ...perfilInstagram, atualizadoEm: new Date().toISOString() };
+    await redisCommand(['SET', ns(negocioId, `cliente:${subscriberId}`), JSON.stringify(perfilMesclado)]);
+  } catch (err) {
+    console.error('Erro ao enriquecer perfil do Instagram:', err);
   }
 }
 

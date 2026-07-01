@@ -32,7 +32,10 @@ export default async function handler(req, res) {
 
       return {
         subscriberId,
-        nome: perfil?.nome || ultimoPedido?.nome || 'Desconhecido',
+        nome: perfil?.instagramNome || perfil?.nome || ultimoPedido?.nome || 'Desconhecido',
+        nomeDelivery: perfil?.nome || ultimoPedido?.nome || null,
+        instagramUsername: perfil?.instagramUsername || null,
+        instagramFoto: perfil?.instagramFoto || null,
         endereco: perfil?.endereco || null,
         pagamento: perfil?.pagamento || null,
         totalPedidos: pedidosConfirmados.length,

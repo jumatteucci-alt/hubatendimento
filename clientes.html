@@ -37,8 +37,22 @@
   .cliente{
     background:var(--ink-2); border:1px solid var(--line); border-radius:12px;
     padding:18px 20px; margin-bottom:12px;
-    display:grid; grid-template-columns:1fr auto; gap:16px; align-items:start;
+    display:grid; grid-template-columns:48px 1fr auto; gap:16px; align-items:start;
   }
+  .cliente-foto{
+    width:48px; height:48px; border-radius:50%; background:var(--ink);
+    border:1px solid var(--line); object-fit:cover; flex-shrink:0;
+  }
+  .cliente-foto-placeholder{
+    width:48px; height:48px; border-radius:50%; background:var(--ink);
+    border:1px solid var(--line); display:flex; align-items:center; justify-content:center;
+    font-size:1.2rem; color:var(--paper-dim); flex-shrink:0;
+  }
+  .instagram-link{
+    display:inline-flex; align-items:center; gap:4px; font-size:0.78rem;
+    color:var(--violet); text-decoration:none; margin-bottom:6px;
+  }
+  .instagram-link:hover{ text-decoration:underline; }
   .cliente-nome{ font-weight:600; font-size:1rem; margin-bottom:4px; }
   .cliente-info{ display:flex; gap:18px; flex-wrap:wrap; font-size:0.82rem; color:var(--paper-dim); margin-bottom:10px; }
   .cliente-info span strong{ color:var(--paper); font-weight:500; }
@@ -166,13 +180,27 @@
         : '-';
       const totalGasto = c.totalGasto > 0 ? 'R$ ' + Number(c.totalGasto).toFixed(2).replace('.', ',') : '-';
 
+      const fotoHtml = c.instagramFoto
+        ? `<img class="cliente-foto" src="${escapeHtml(c.instagramFoto)}" alt="Foto de perfil" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="cliente-foto-placeholder" style="display:none">👤</div>`
+        : `<div class="cliente-foto-placeholder">👤</div>`;
+
+      const instagramHtml = c.instagramUsername
+        ? `<a class="instagram-link" href="https://instagram.com/${c.instagramUsername}" target="_blank" rel="noopener">@${escapeHtml(c.instagramUsername)}</a>`
+        : '';
+
+      const nomeEntrega = c.nomeDelivery && c.nomeDelivery !== c.nome
+        ? `<span style="font-size:0.78rem;color:var(--paper-dim);margin-left:6px;">(${escapeHtml(c.nomeDelivery)})</span>`
+        : '';
+
       return `
         <div class="cliente">
+          <div>${fotoHtml}</div>
           <div>
-            <div class="cliente-nome">${escapeHtml(c.nome || 'Desconhecido')}</div>
+            <div class="cliente-nome">${escapeHtml(c.nome || 'Desconhecido')}${nomeEntrega}</div>
+            ${instagramHtml}
             <div class="cliente-info">
               ${c.endereco ? `<span><strong>Endereço:</strong> ${escapeHtml(c.endereco)}</span>` : ''}
-              ${c.pagamento ? `<span><strong>Pagamento habitual:</strong> ${escapeHtml(c.pagamento)}</span>` : ''}
+              ${c.pagamento ? `<span><strong>Pagamento:</strong> ${escapeHtml(c.pagamento)}</span>` : ''}
             </div>
             <div class="cliente-stats">
               <div class="stat"><strong>${c.totalPedidos}</strong>pedido(s)</div>
