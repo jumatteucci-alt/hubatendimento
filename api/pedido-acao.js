@@ -32,7 +32,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    if (!id || !['entregando', 'finalizar', 'excluir'].includes(acao)) {
+    if (!id || !['entregando', 'finalizar', 'excluir', 'cancelar'].includes(acao)) {
       return res.status(400).json({ error: 'Parâmetros inválidos' });
     }
 
@@ -47,6 +47,13 @@ export default async function handler(req, res) {
     }
 
     if (!encontrado) return res.status(404).json({ error: 'Pedido não encontrado' });
+
+    if (acao === 'cancelar') {
+      encontrado.status = 'cancelado';
+      encontrado.canceladoEm = new Date().toISOString();
+      encontrado.canceladoPor = 'painel';
+      await redisCommand(['LSET', chave, String(index), JSON.stringify(encontrado)]);
+    }
 
     if (acao === 'entregando') {
       encontrado.status = 'em_entrega';

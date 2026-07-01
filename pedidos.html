@@ -81,8 +81,24 @@
   }
   .btn-acao.entrega{ border-color:var(--green); color:var(--green); }
   .btn-acao.finalizar{ border-color:var(--paper-dim); color:var(--paper-dim); }
-  .btn-acao.excluir{ border-color:var(--coral); color:var(--coral); }
+  .btn-acao.cancelar{ border-color:var(--coral); color:var(--coral); }
+  .btn-acao.excluir{ border-color:rgba(255,107,74,0.4); color:rgba(255,107,74,0.6); }
+  .btn-acao.conversa{ border-color:var(--violet); color:var(--violet); }
   .btn-acao:hover{ opacity:0.8; }
+
+  /* Modal de histórico */
+  #modal-overlay{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:100; align-items:center; justify-content:center; padding:24px; }
+  #modal-overlay.aberto{ display:flex; }
+  #modal-box{ background:var(--ink-2); border:1px solid var(--line); border-radius:14px; width:100%; max-width:540px; max-height:80vh; display:flex; flex-direction:column; }
+  #modal-header{ display:flex; justify-content:space-between; align-items:center; padding:18px 20px; border-bottom:1px solid var(--line); }
+  #modal-header h3{ font-family:'Archivo',sans-serif; font-size:1rem; }
+  #modal-fechar{ background:transparent; border:none; color:var(--paper-dim); font-size:1.3rem; cursor:pointer; padding:4px 8px; }
+  #modal-body{ overflow-y:auto; padding:20px; flex:1; }
+  .msg{ margin-bottom:14px; }
+  .msg-role{ font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:4px; }
+  .msg-role.user{ color:var(--violet); }
+  .msg-role.model{ color:var(--green); }
+  .msg-texto{ font-size:0.88rem; line-height:1.5; color:var(--paper-dim); white-space:pre-wrap; }
   .pedido-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; flex-wrap:wrap; gap:6px; }
   .pedido-nome{ font-weight:600; font-size:1.05rem; }
   .pedido-total{ color:var(--coral); font-weight:700; font-size:1.1rem; }
@@ -109,6 +125,16 @@
 </style>
 </head>
 <body>
+
+<div id="modal-overlay">
+  <div id="modal-box">
+    <div id="modal-header">
+      <h3 id="modal-titulo">Conversa</h3>
+      <button id="modal-fechar">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
 
 <div id="loading-screen"></div>
 <div id="login-screen">
@@ -279,7 +305,9 @@
       if (p.status === 'lead') {
         acoes = `
           <div class="pedido-acoes">
-            <button class="btn-acao reset" onclick="resetarConversa('${p.subscriberId}')">Reiniciar conversa</button>
+            <button class="btn-acao conversa" onclick="verConversa('${p.subscriberId}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
+            <button class="btn-acao cancelar" onclick="executarAcao('${p.id}', 'cancelar')">Cancelar</button>
+            <button class="btn-acao reset" onclick="resetarConversa('${p.subscriberId}')">Reiniciar</button>
             <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
       } else if (p.status === 'ativo') {
@@ -287,20 +315,23 @@
           <div class="pedido-acoes">
             <button class="btn-acao entrega" onclick="executarAcao('${p.id}', 'entregando')">${labelAcaoEntrega}</button>
             <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar</button>
-            <button class="btn-acao reset" onclick="resetarConversa('${p.subscriberId}')">Reiniciar conversa</button>
+            <button class="btn-acao conversa" onclick="verConversa('${p.subscriberId}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
+            <button class="btn-acao cancelar" onclick="executarAcao('${p.id}', 'cancelar')">Cancelar</button>
+            <button class="btn-acao reset" onclick="resetarConversa('${p.subscriberId}')">Reiniciar</button>
             <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
       } else if (p.status === 'em_entrega') {
         acoes = `
           <div class="pedido-acoes">
             <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar</button>
-            <button class="btn-acao reset" onclick="resetarConversa('${p.subscriberId}')">Reiniciar conversa</button>
+            <button class="btn-acao conversa" onclick="verConversa('${p.subscriberId}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
+            <button class="btn-acao reset" onclick="resetarConversa('${p.subscriberId}')">Reiniciar</button>
             <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
       } else {
         acoes = `
           <div class="pedido-acoes">
-            <button class="btn-acao reset" onclick="resetarConversa('${p.subscriberId}')">Reiniciar conversa</button>
+            <button class="btn-acao conversa" onclick="verConversa('${p.subscriberId}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
             <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
       }
@@ -338,6 +369,58 @@
   function confirmarExclusao(id) {
     if (confirm('Tem certeza que quer excluir este pedido? Essa ação não pode ser desfeita.')) {
       executarAcao(id, 'excluir');
+    }
+  }
+
+  // ─── Modal de histórico ───────────────────────────────────────────────────
+  document.getElementById('modal-fechar').addEventListener('click', fecharModal);
+  document.getElementById('modal-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('modal-overlay')) fecharModal();
+  });
+
+  function fecharModal() {
+    document.getElementById('modal-overlay').classList.remove('aberto');
+  }
+
+  async function verConversa(subscriberId, nomeCliente) {
+    document.getElementById('modal-titulo').textContent = `Conversa com ${nomeCliente}`;
+    document.getElementById('modal-body').innerHTML = '<div style="color:var(--paper-dim);font-size:0.9rem;">Carregando...</div>';
+    document.getElementById('modal-overlay').classList.add('aberto');
+
+    try {
+      const resp = await fetch(
+        `/api/historico?negocio_id=${negocioId}&senha=${encodeURIComponent(senhaAtual)}&subscriber_id=${encodeURIComponent(subscriberId)}`
+      );
+      if (!resp.ok) { document.getElementById('modal-body').innerHTML = '<div style="color:var(--coral)">Erro ao carregar a conversa.</div>'; return; }
+
+      const data = await resp.json();
+      const msgs = data.historico || [];
+
+      if (!msgs.length) {
+        document.getElementById('modal-body').innerHTML = '<div style="color:var(--paper-dim);font-size:0.9rem;">Nenhuma mensagem encontrada.</div>';
+        return;
+      }
+
+      document.getElementById('modal-body').innerHTML = msgs.map(m => {
+        const isUser = m.role === 'user';
+        const texto = m.parts?.[0]?.text || '';
+        // Remove blocos de controle internos da exibição
+        const textoLimpo = texto
+          .replace(/###PEDIDO###[\s\S]*?###FIM###/g, '')
+          .replace(/###LEAD###[\s\S]*?###FIM###/g, '')
+          .replace(/###CANCELAR###/g, '')
+          .replace(/###CHAMAR_HUMANO###/g, '')
+          .replace(/###ENVIAR_CARDAPIO###/g, '')
+          .trim();
+        if (!textoLimpo) return '';
+        return `
+          <div class="msg">
+            <div class="msg-role ${isUser ? 'user' : 'model'}">${isUser ? 'Cliente' : 'Bot'}</div>
+            <div class="msg-texto">${escapeHtml(textoLimpo)}</div>
+          </div>`;
+      }).join('');
+    } catch (err) {
+      document.getElementById('modal-body').innerHTML = '<div style="color:var(--coral)">Erro ao carregar a conversa.</div>';
     }
   }
 
