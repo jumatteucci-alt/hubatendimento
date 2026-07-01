@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relatórios — HubAtendimento</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12131a; --ink-2:#1b1d27; --ink-3:#222532;
+    --paper:#f2efe9; --paper-dim:#c9c6bf;
+    --coral:#ff6b4a; --green:#5ee69b; --violet:#9a9eff; --amber:#f5c842;
+    --line:rgba(242,239,233,0.12);
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  body{ background:var(--ink); color:var(--paper); font-family:'IBM Plex Sans',sans-serif; min-height:100vh; }
+  h1{ font-family:'Archivo',sans-serif; font-weight:800; }
+
+  /* LOGIN */
+  #loading-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; }
+  #login-screen{ display:none; min-height:100vh; align-items:center; justify-content:center; flex-direction:column; gap:18px; padding:24px; }
+  #login-screen.visivel{ display:flex; }
+  #login-screen input{ background:var(--ink-2); border:1px solid var(--line); border-radius:8px; padding:12px 16px; color:var(--paper); font-size:1rem; width:260px; text-align:center; }
+  #login-screen button{ background:var(--coral); color:var(--ink); border:none; border-radius:8px; padding:12px 24px; font-weight:600; cursor:pointer; }
+  #login-error{ color:var(--coral); font-size:0.85rem; min-height:18px; }
+
+  /* PAINEL */
+  #panel{ display:none; max-width:880px; margin:0 auto; padding:40px 24px 100px; }
+
+  .topnav{ display:flex; gap:4px; margin-bottom:32px; border-bottom:1px solid var(--line); }
+  .topnav a{ color:var(--paper-dim); text-decoration:none; font-size:0.88rem; font-weight:500; padding:10px 16px; border-bottom:2px solid transparent; }
+  .topnav a:hover{ color:var(--paper); }
+  .topnav a.ativo{ color:var(--paper); border-bottom-color:var(--coral); font-weight:600; }
+
+  .panel-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:28px; flex-wrap:wrap; gap:10px; }
+
+  /* CARDS DE MÉTRICAS */
+  .metricas{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px; }
+  @media(max-width:640px){ .metricas{ grid-template-columns:repeat(2,1fr); } }
+  .card{
+    background:var(--ink-2); border:1px solid var(--line); border-radius:12px;
+    padding:18px 20px;
+  }
+  .card-label{ font-size:0.78rem; color:var(--paper-dim); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.06em; }
+  .card-valor{ font-family:'Archivo',sans-serif; font-size:1.9rem; font-weight:800; line-height:1; }
+  .card-sub{ font-size:0.8rem; color:var(--paper-dim); margin-top:6px; }
+  .card-sub.up{ color:var(--green); }
+  .card-sub.down{ color:var(--coral); }
+
+  /* SEÇÕES */
+  .secao{ background:var(--ink-2); border:1px solid var(--line); border-radius:12px; padding:22px 24px; margin-bottom:20px; }
+  .secao h2{ font-family:'Archivo',sans-serif; font-size:0.95rem; font-weight:700; margin-bottom:18px; color:var(--paper-dim); text-transform:uppercase; letter-spacing:0.05em; }
+
+  /* GRÁFICO */
+  .grafico-wrap{ width:100%; overflow-x:auto; }
+  .barras{ display:flex; align-items:flex-end; gap:4px; height:120px; min-width:600px; }
+  .barra-col{ display:flex; flex-direction:column; align-items:center; gap:4px; flex:1; }
+  .barra{
+    width:100%; background:var(--coral); border-radius:3px 3px 0 0; min-height:2px;
+    transition:height .3s ease; cursor:default;
+    position:relative;
+  }
+  .barra:hover::after{
+    content:attr(data-tip);
+    position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%);
+    background:var(--ink-3); color:var(--paper); font-size:0.75rem; padding:4px 8px;
+    border-radius:6px; white-space:nowrap; pointer-events:none; z-index:10;
+  }
+  .barra-data{ font-size:0.65rem; color:var(--paper-dim); font-family:'IBM Plex Mono',monospace; writing-mode:vertical-rl; transform:rotate(180deg); }
+
+  /* TOP ITENS */
+  .item-row{ display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+  .item-nome{ flex:1; font-size:0.92rem; }
+  .item-barra{ height:6px; background:var(--violet); border-radius:3px; }
+  .item-qtd{ font-family:'IBM Plex Mono',monospace; font-size:0.82rem; color:var(--paper-dim); min-width:28px; text-align:right; }
+
+  /* LINHA COM DOIS PAINÉIS */
+  .grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media(max-width:640px){ .grid-2{ grid-template-columns:1fr; } }
+
+  .stat-row{ display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--line); font-size:0.9rem; }
+  .stat-row:last-child{ border-bottom:none; }
+  .stat-val{ font-family:'IBM Plex Mono',monospace; font-weight:600; }
+</style>
+</head>
+<body>
+
+<div id="loading-screen"></div>
+<div id="login-screen">
+  <h1>Relatórios</h1>
+  <input type="password" id="senha-input" placeholder="Senha de acesso" autocomplete="off">
+  <button id="login-btn">Entrar</button>
+  <div id="login-error"></div>
+</div>
+
+<div id="panel">
+  <nav class="topnav">
+    <a href="/pedidos">Pedidos</a>
+    <a href="/agenda">Agenda</a>
+    <a href="/relatorios" class="ativo">Relatórios</a>
+    <a href="/cadastro">Cadastro</a>
+  </nav>
+  <div class="panel-head">
+    <h1>Relatórios</h1>
+  </div>
+
+  <div class="metricas">
+    <div class="card">
+      <div class="card-label">Hoje</div>
+      <div class="card-valor" id="val-hoje-pedidos">—</div>
+      <div class="card-sub" id="val-hoje-receita">pedidos</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Esta semana</div>
+      <div class="card-valor" id="val-semana-pedidos">—</div>
+      <div class="card-sub" id="val-semana-receita"></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Este mês</div>
+      <div class="card-valor" id="val-mes-pedidos">—</div>
+      <div class="card-sub" id="val-mes-receita"></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Mês anterior</div>
+      <div class="card-valor" id="val-mespassado-pedidos">—</div>
+      <div class="card-sub" id="val-mespassado-receita"></div>
+    </div>
+  </div>
+
+  <div class="secao">
+    <h2>Pedidos — últimos 30 dias</h2>
+    <div class="grafico-wrap">
+      <div class="barras" id="grafico"></div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="secao">
+      <h2>Itens mais pedidos</h2>
+      <div id="top-itens"><div style="color:var(--paper-dim);font-size:0.9rem;">Nenhum pedido ainda.</div></div>
+    </div>
+    <div class="secao">
+      <h2>Visão geral</h2>
+      <div id="visao-geral"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const CHAVE_STORAGE = 'hubatendimento_senha';
+  let senhaAtual = '';
+  const negocioId = new URLSearchParams(window.location.search).get('negocio_id') || 'default';
+  const paramNegocio = negocioId !== 'default' ? `?negocio_id=${negocioId}` : '';
+
+  document.querySelectorAll('.topnav a').forEach(a => {
+    const base = a.getAttribute('href').split('?')[0];
+    a.href = base + paramNegocio;
+  });
+
+  document.getElementById('login-btn').addEventListener('click', tentarLogin);
+  document.getElementById('senha-input').addEventListener('keydown', e => { if (e.key === 'Enter') tentarLogin(); });
+
+  async function tentarLogin(senhaForcada) {
+    const senha = senhaForcada ?? document.getElementById('senha-input').value;
+    const resp = await fetch(`/api/relatorios?negocio_id=${negocioId}&senha=` + encodeURIComponent(senha));
+    if (!resp.ok) {
+      localStorage.removeItem(CHAVE_STORAGE + ':' + negocioId);
+      document.getElementById('loading-screen').style.display = 'none';
+      document.getElementById('login-screen').classList.add('visivel');
+      document.getElementById('login-error').textContent = senhaForcada ? '' : 'Senha incorreta.';
+      return;
+    }
+    senhaAtual = senha;
+    localStorage.setItem(CHAVE_STORAGE + ':' + negocioId, senha);
+    const data = await resp.json();
+    document.getElementById('loading-screen').style.display = 'none';
+    document.getElementById('login-screen').classList.remove('visivel');
+    document.getElementById('panel').style.display = 'block';
+    renderizar(data);
+  }
+
+  function fmt(val) {
+    return 'R$ ' + Number(val).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+
+  function renderizar(data) {
+    const r = data.resumo;
+
+    // Cards de métricas
+    document.getElementById('val-hoje-pedidos').textContent = r.hoje.pedidos;
+    document.getElementById('val-hoje-receita').textContent = r.hoje.receita > 0 ? fmt(r.hoje.receita) : 'pedidos';
+
+    document.getElementById('val-semana-pedidos').textContent = r.semana.pedidos;
+    document.getElementById('val-semana-receita').textContent = r.semana.receita > 0 ? fmt(r.semana.receita) : '';
+
+    document.getElementById('val-mes-pedidos').textContent = r.mes.pedidos;
+    const diffMes = r.mes.pedidos - r.mesPassado.pedidos;
+    const subMes = document.getElementById('val-mes-receita');
+    subMes.textContent = r.mes.receita > 0 ? fmt(r.mes.receita) : (diffMes !== 0 ? (diffMes > 0 ? `+${diffMes} vs mês anterior` : `${diffMes} vs mês anterior`) : '');
+    if (diffMes > 0) subMes.className = 'card-sub up';
+    else if (diffMes < 0) subMes.className = 'card-sub down';
+
+    document.getElementById('val-mespassado-pedidos').textContent = r.mesPassado.pedidos;
+    document.getElementById('val-mespassado-receita').textContent = r.mesPassado.receita > 0 ? fmt(r.mesPassado.receita) : '';
+
+    // Gráfico de barras
+    const porDia = data.porDia;
+    const maxPedidos = Math.max(...porDia.map(d => d.pedidos), 1);
+    const grafico = document.getElementById('grafico');
+    grafico.innerHTML = porDia.map(d => `
+      <div class="barra-col">
+        <div class="barra"
+          style="height:${Math.max(4, (d.pedidos / maxPedidos) * 100)}px"
+          data-tip="${d.data}: ${d.pedidos} pedido(s)${d.receita > 0 ? ' · ' + fmt(d.receita) : ''}">
+        </div>
+        <div class="barra-data">${d.data}</div>
+      </div>`).join('');
+
+    // Top itens
+    const topEl = document.getElementById('top-itens');
+    if (!data.topItens || !data.topItens.length) {
+      topEl.innerHTML = '<div style="color:var(--paper-dim);font-size:0.9rem;">Nenhum pedido ainda.</div>';
+    } else {
+      const maxQtd = data.topItens[0].qtd;
+      topEl.innerHTML = data.topItens.map(item => `
+        <div class="item-row">
+          <div class="item-nome">${escapeHtml(item.nome)}</div>
+          <div class="item-barra" style="width:${Math.round((item.qtd / maxQtd) * 80)}px"></div>
+          <div class="item-qtd">${item.qtd}x</div>
+        </div>`).join('');
+    }
+
+    // Visão geral
+    document.getElementById('visao-geral').innerHTML = `
+      <div class="stat-row"><span>Total de pedidos</span><span class="stat-val">${r.total.pedidos}</span></div>
+      <div class="stat-row"><span>Leads em aberto</span><span class="stat-val">${r.total.leads}</span></div>
+      <div class="stat-row"><span>Cancelados</span><span class="stat-val">${r.total.cancelados}</span></div>
+      <div class="stat-row"><span>Taxa de cancelamento</span><span class="stat-val">${r.total.pedidos + r.total.cancelados > 0 ? Math.round(r.total.cancelados / (r.total.pedidos + r.total.cancelados) * 100) : 0}%</span></div>
+    `;
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div'); d.textContent = str; return d.innerHTML;
+  }
+
+  const senhaSalva = localStorage.getItem(CHAVE_STORAGE + ':' + negocioId);
+  if (senhaSalva) { tentarLogin(senhaSalva); }
+  else { document.getElementById('loading-screen').style.display = 'none'; document.getElementById('login-screen').classList.add('visivel'); }
+</script>
+</body>
+</html>
