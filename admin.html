@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — HubAtendimento</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{ --ink:#12131a; --ink-2:#1b1d27; --paper:#f2efe9; --paper-dim:#c9c6bf; --coral:#ff6b4a; --green:#5ee69b; --line:rgba(242,239,233,0.12); }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--ink); color:var(--paper); font-family:'IBM Plex Sans',sans-serif; min-height:100vh; }
+  h1{ font-family:'Archivo',sans-serif; font-weight:800; }
+  label{ display:block; font-size:0.85rem; color:var(--paper-dim); margin-bottom:6px; }
+  input{ width:100%; background:var(--ink-2); border:1px solid var(--line); border-radius:8px; padding:10px 14px; color:var(--paper); font-size:0.95rem; }
+  button{ background:var(--coral); color:var(--ink); border:none; border-radius:8px; padding:11px 22px; font-weight:600; cursor:pointer; font-size:0.92rem; }
+  #login-screen{ display:none; min-height:100vh; align-items:center; justify-content:center; flex-direction:column; gap:18px; padding:24px; }
+  #login-screen.visivel{ display:flex; }
+  #login-screen input{ width:260px; text-align:center; }
+  #loading-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; }
+  #panel{ display:none; max-width:760px; margin:0 auto; padding:40px 24px 100px; }
+  .section{ background:var(--ink-2); border:1px solid var(--line); border-radius:14px; padding:24px; margin-bottom:24px; }
+  .section h2{ font-family:'Archivo',sans-serif; font-size:1.1rem; margin:0 0 18px; }
+  .grid-3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+  .field{ margin-bottom:14px; }
+  .negocio-card{ background:var(--ink); border:1px solid var(--line); border-radius:10px; padding:14px 18px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; }
+  .negocio-card .info{ font-size:0.9rem; }
+  .negocio-card .id{ font-family:'IBM Plex Mono',monospace; font-size:0.78rem; color:var(--coral); }
+  .negocio-card a{ color:var(--paper-dim); font-size:0.82rem; text-decoration:none; }
+  .negocio-card a:hover{ color:var(--paper); }
+  #status{ margin-top:12px; font-size:0.85rem; min-height:18px; }
+  .ok{ color:var(--green); } .erro{ color:var(--coral); }
+  #login-error{ color:var(--coral); font-size:0.85rem; min-height:18px; }
+</style>
+</head>
+<body>
+<div id="loading-screen"></div>
+<div id="login-screen">
+  <h1>Admin</h1>
+  <input type="password" id="senha-input" placeholder="Senha de administrador" autocomplete="off">
+  <button id="login-btn">Entrar</button>
+  <div id="login-error"></div>
+</div>
+<div id="panel">
+  <h1 style="margin-bottom:28px;">Administração de Negócios</h1>
+
+  <div class="section">
+    <h2>Criar novo negócio</h2>
+    <div class="grid-3">
+      <div class="field">
+        <label>ID (único, sem espaços)</label>
+        <input type="text" id="novo-id" placeholder="ex: pizzaria-joao">
+      </div>
+      <div class="field">
+        <label>Nome de exibição</label>
+        <input type="text" id="novo-nome" placeholder="ex: Pizzaria do João">
+      </div>
+      <div class="field">
+        <label>Senha do painel</label>
+        <input type="text" id="nova-senha" placeholder="ex: pizza2026">
+      </div>
+    </div>
+    <button id="criar-btn">Criar negócio</button>
+    <div id="status"></div>
+  </div>
+
+  <div class="section">
+    <h2>Negócios cadastrados</h2>
+    <div id="lista-negocios"><div style="color:var(--paper-dim);font-size:0.9rem;">Carregando...</div></div>
+  </div>
+</div>
+
+<script>
+  const CHAVE = 'hubatendimento_admin_senha';
+  let senhaAdmin = '';
+
+  document.getElementById('login-btn').addEventListener('click', tentarLogin);
+  document.getElementById('senha-input').addEventListener('keydown', e => { if (e.key === 'Enter') tentarLogin(); });
+  document.getElementById('criar-btn').addEventListener('click', criarNegocio);
+
+  async function tentarLogin(senhaForcada) {
+    const senha = senhaForcada ?? document.getElementById('senha-input').value;
+    const resp = await fetch('/api/admin?admin_senha=' + encodeURIComponent(senha));
+    if (!resp.ok) {
+      localStorage.removeItem(CHAVE);
+      document.getElementById('loading-screen').style.display = 'none';
+      document.getElementById('login-screen').classList.add('visivel');
+      document.getElementById('login-error').textContent = senhaForcada ? '' : 'Senha incorreta.';
+      return;
+    }
+    senhaAdmin = senha;
+    localStorage.setItem(CHAVE, senha);
+    const data = await resp.json();
+    document.getElementById('loading-screen').style.display = 'none';
+    document.getElementById('login-screen').classList.remove('visivel');
+    document.getElementById('panel').style.display = 'block';
+    renderizarNegocios(data.negocios || []);
+  }
+
+  async function criarNegocio() {
+    const id = document.getElementById('novo-id').value.trim();
+    const nome = document.getElementById('novo-nome').value.trim();
+    const senha = document.getElementById('nova-senha').value.trim();
+    const status = document.getElementById('status');
+
+    if (!id || !nome || !senha) { status.textContent = 'Preencha todos os campos.'; status.className = 'erro'; return; }
+    status.textContent = 'Criando...'; status.className = '';
+
+    const resp = await fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_senha: senhaAdmin, id, nome, senha }),
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      status.textContent = data.error || 'Erro ao criar negócio.';
+      status.className = 'erro';
+      return;
+    }
+    status.textContent = `Negócio "${nome}" criado com sucesso! ID: ${id}`;
+    status.className = 'ok';
+    document.getElementById('novo-id').value = '';
+    document.getElementById('novo-nome').value = '';
+    document.getElementById('nova-senha').value = '';
+
+    // Atualiza a lista
+    const listResp = await fetch('/api/admin?admin_senha=' + encodeURIComponent(senhaAdmin));
+    const listData = await listResp.json();
+    renderizarNegocios(listData.negocios || []);
+  }
+
+  function renderizarNegocios(negocios) {
+    const lista = document.getElementById('lista-negocios');
+    if (!negocios.length) {
+      lista.innerHTML = '<div style="color:var(--paper-dim);font-size:0.9rem;">Nenhum negócio cadastrado ainda.</div>';
+      return;
+    }
+    lista.innerHTML = negocios.map(n => `
+      <div class="negocio-card">
+        <div class="info">
+          <div>${escapeHtml(n.nome)} <span class="id">${escapeHtml(n.id)}</span></div>
+          <div style="color:var(--paper-dim);font-size:0.8rem;margin-top:2px;">${n.tipo}</div>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <a href="/pedidos?negocio_id=${n.id}" target="_blank">Pedidos</a>
+          <a href="/agenda?negocio_id=${n.id}" target="_blank">Agenda</a>
+          <a href="/cadastro?negocio_id=${n.id}" target="_blank">Cadastro</a>
+        </div>
+      </div>`).join('');
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div'); d.textContent = str; return d.innerHTML;
+  }
+
+  const senhaSalva = localStorage.getItem(CHAVE);
+  if (senhaSalva) { tentarLogin(senhaSalva); }
+  else { document.getElementById('loading-screen').style.display = 'none'; document.getElementById('login-screen').classList.add('visivel'); }
+</script>
+</body>
+</html>

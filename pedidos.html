@@ -136,6 +136,16 @@
   const CHAVE_STORAGE = 'hubatendimento_senha';
   let senhaAtual = '';
 
+  // Detecta negocio_id da URL ou usa 'default'
+  const negocioId = new URLSearchParams(window.location.search).get('negocio_id') || 'default';
+  const paramNegocio = negocioId !== 'default' ? `?negocio_id=${negocioId}` : '';
+
+  // Atualiza links de navegação com o negocio_id atual
+  document.querySelectorAll('.topnav a').forEach(a => {
+    const base = a.getAttribute('href').split('?')[0];
+    a.href = base + paramNegocio;
+  });
+
   document.getElementById('login-btn').addEventListener('click', tentarLogin);
   document.getElementById('senha-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') tentarLogin();
@@ -146,13 +156,13 @@
     const ok = await buscarPedidos(senha);
     if (ok) {
       senhaAtual = senha;
-      localStorage.setItem(CHAVE_STORAGE, senha);
+      localStorage.setItem(CHAVE_STORAGE + ':' + negocioId, senha);
       document.getElementById('loading-screen').style.display = 'none';
       document.getElementById('login-screen').classList.remove('visivel');
       document.getElementById('panel').style.display = 'block';
       setInterval(() => buscarPedidos(senhaAtual), 8000);
     } else {
-      localStorage.removeItem(CHAVE_STORAGE);
+      localStorage.removeItem(CHAVE_STORAGE + ':' + negocioId);
       document.getElementById('loading-screen').style.display = 'none';
       document.getElementById('login-screen').classList.add('visivel');
       document.getElementById('login-error').textContent = senhaForcada ? '' : 'Senha incorreta.';
@@ -160,7 +170,7 @@
   }
 
   // Enquanto verifica se já existe uma senha salva, mostra só a tela neutra de carregamento
-  const senhaSalva = localStorage.getItem(CHAVE_STORAGE);
+  const senhaSalva = localStorage.getItem(CHAVE_STORAGE + ':' + negocioId);
   if (senhaSalva) {
     tentarLogin(senhaSalva);
   } else {
@@ -170,7 +180,7 @@
 
   async function buscarPedidos(senha) {
     try {
-      const resp = await fetch('/api/pedidos?senha=' + encodeURIComponent(senha));
+      const resp = await fetch(`/api/pedidos?negocio_id=${negocioId}&senha=` + encodeURIComponent(senha));
       if (!resp.ok) return false;
       const data = await resp.json();
       renderizar(data.pedidos || []);
@@ -214,7 +224,7 @@
       await fetch('/api/pedido-acao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ senha: senhaAtual, acao: 'resolver_alerta', alertaId }),
+        body: JSON.stringify({ senha: senhaAtual, negocio_id: negocioId, acao: 'resolver_alerta', alertaId }),
       });
       buscarPedidos(senhaAtual);
     } catch (err) {
@@ -328,12 +338,9 @@
       const resp = await fetch('/api/pedido-acao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ senha: senhaAtual, acao: 'resetar_conversa', subscriberId }),
+        body: JSON.stringify({ senha: senhaAtual, negocio_id: negocioId, acao: 'resetar_conversa', subscriberId }),
       });
-      if (!resp.ok) {
-        alert('Não foi possível reiniciar a conversa.');
-        return;
-      }
+      if (!resp.ok) { alert('Não foi possível reiniciar a conversa.'); return; }
       alert('Conversa reiniciada.');
     } catch (err) {
       console.error(err);
@@ -346,7 +353,7 @@
       const resp = await fetch('/api/pedido-acao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ senha: senhaAtual, id, acao }),
+        body: JSON.stringify({ senha: senhaAtual, negocio_id: negocioId, id, acao }),
       });
       if (!resp.ok) {
         alert('Não foi possível atualizar o pedido.');

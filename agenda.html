@@ -108,6 +108,16 @@
 
 <script>
   const CHAVE_STORAGE = 'hubatendimento_senha';
+
+  // Detecta negocio_id da URL ou usa 'default'
+  const negocioId = new URLSearchParams(window.location.search).get('negocio_id') || 'default';
+  const paramNegocio = negocioId !== 'default' ? `?negocio_id=${negocioId}` : '';
+
+  // Atualiza links de navegação
+  document.querySelectorAll('.topnav a').forEach(a => {
+    const base = a.getAttribute('href').split('?')[0];
+    a.href = base + paramNegocio;
+  });
   let senhaAtual = '';
 
   document.getElementById('login-btn').addEventListener('click', tentarLogin);
@@ -118,20 +128,20 @@
     const ok = await buscarAgenda(senha);
     if (ok) {
       senhaAtual = senha;
-      localStorage.setItem(CHAVE_STORAGE, senha);
+      localStorage.setItem(CHAVE_STORAGE + ':' + negocioId, senha);
       document.getElementById('loading-screen').style.display = 'none';
       document.getElementById('login-screen').classList.remove('visivel');
       document.getElementById('panel').style.display = 'block';
       setInterval(() => buscarAgenda(senhaAtual), 10000);
     } else {
-      localStorage.removeItem(CHAVE_STORAGE);
+      localStorage.removeItem(CHAVE_STORAGE + ':' + negocioId);
       document.getElementById('loading-screen').style.display = 'none';
       document.getElementById('login-screen').classList.add('visivel');
       document.getElementById('login-error').textContent = senhaForcada ? '' : 'Senha incorreta.';
     }
   }
 
-  const senhaSalva = localStorage.getItem(CHAVE_STORAGE);
+  const senhaSalva = localStorage.getItem(CHAVE_STORAGE + ':' + negocioId);
   if (senhaSalva) {
     tentarLogin(senhaSalva);
   } else {
@@ -141,7 +151,7 @@
 
   async function buscarAgenda(senha) {
     try {
-      const resp = await fetch('/api/pedidos?senha=' + encodeURIComponent(senha));
+      const resp = await fetch(`/api/pedidos?negocio_id=${negocioId}&senha=` + encodeURIComponent(senha));
       if (!resp.ok) return false;
       const data = await resp.json();
       renderizar(data.pedidos || []);
@@ -185,7 +195,7 @@
       await fetch('/api/pedido-acao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ senha: senhaAtual, acao: 'resolver_alerta', alertaId }),
+        body: JSON.stringify({ senha: senhaAtual, negocio_id: negocioId, acao: 'resolver_alerta', alertaId }),
       });
       buscarAgenda(senhaAtual);
     } catch (err) {
@@ -283,7 +293,7 @@
       const resp = await fetch('/api/pedido-acao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ senha: senhaAtual, acao: 'resetar_conversa', subscriberId }),
+        body: JSON.stringify({ senha: senhaAtual, negocio_id: negocioId, acao: 'resetar_conversa', subscriberId }),
       });
       if (!resp.ok) {
         alert('Não foi possível reiniciar a conversa.');
@@ -301,7 +311,7 @@
       const resp = await fetch('/api/pedido-acao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ senha: senhaAtual, id, acao }),
+        body: JSON.stringify({ senha: senhaAtual, negocio_id: negocioId, id, acao }),
       });
       if (!resp.ok) {
         alert('Não foi possível atualizar o agendamento.');

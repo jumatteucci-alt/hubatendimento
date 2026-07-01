@@ -178,6 +178,16 @@
   const CHAVE_STORAGE = 'hubatendimento_senha';
   let senhaAtual = '';
 
+  // Detecta negocio_id da URL ou usa 'default'
+  const negocioId = new URLSearchParams(window.location.search).get('negocio_id') || 'default';
+  const paramNegocio = negocioId !== 'default' ? `?negocio_id=${negocioId}` : '';
+
+  // Atualiza links de navegação
+  document.querySelectorAll('.topnav a').forEach(a => {
+    const base = a.getAttribute('href').split('?')[0];
+    a.href = base + paramNegocio;
+  });
+
   document.getElementById('login-btn').addEventListener('click', tentarLogin);
   document.getElementById('senha-input').addEventListener('keydown', e => { if (e.key === 'Enter') tentarLogin(); });
   document.getElementById('add-item-btn').addEventListener('click', () => adicionarLinhaItem({ nome: '', preco: '', descricao: '' }));
@@ -247,9 +257,9 @@
 
   async function tentarLogin(senhaForcada) {
     const senha = senhaForcada ?? document.getElementById('senha-input').value;
-    const resp = await fetch('/api/negocio?senha=' + encodeURIComponent(senha));
+    const resp = await fetch(`/api/negocio?negocio_id=${negocioId}&senha=` + encodeURIComponent(senha));
     if (!resp.ok) {
-      localStorage.removeItem(CHAVE_STORAGE);
+      localStorage.removeItem(CHAVE_STORAGE + ':' + negocioId);
       document.getElementById('loading-screen').style.display = 'none';
       document.getElementById('login-screen').classList.add('visivel');
       document.getElementById('login-error').textContent = senhaForcada ? '' : 'Senha incorreta.';
@@ -257,14 +267,14 @@
     }
     const data = await resp.json();
     senhaAtual = senha;
-    localStorage.setItem(CHAVE_STORAGE, senha);
+    localStorage.setItem(CHAVE_STORAGE + ':' + negocioId, senha);
     preencherFormulario(data.negocio);
     document.getElementById('loading-screen').style.display = 'none';
     document.getElementById('login-screen').classList.remove('visivel');
     document.getElementById('panel').style.display = 'block';
   }
 
-  const senhaSalva = localStorage.getItem(CHAVE_STORAGE);
+  const senhaSalva = localStorage.getItem(CHAVE_STORAGE + ':' + negocioId);
   if (senhaSalva) {
     tentarLogin(senhaSalva);
   } else {
@@ -348,7 +358,7 @@
       const resp = await fetch('/api/negocio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ senha: senhaAtual, negocio }),
+        body: JSON.stringify({ senha: senhaAtual, negocio_id: negocioId, negocio }),
       });
       if (!resp.ok) throw new Error('Falha ao salvar');
       status.textContent = 'Salvo! O agente já está usando essas informações.';
