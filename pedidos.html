@@ -148,6 +148,7 @@
   <nav class="topnav">
     <a href="/pedidos" class="ativo">Pedidos</a>
     <a href="/agenda">Agenda</a>
+    <a href="/clientes">Clientes</a>
     <a href="/relatorios">Relatórios</a>
     <a href="/cadastro">Cadastro</a>
   </nav>
@@ -346,9 +347,8 @@
       if (p.status === 'lead') {
         acoes = `
           <div class="pedido-acoes">
-            <button class="btn-acao conversa" onclick="verConversa('${p.subscriberId}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
+            <button class="btn-acao conversa" onclick="verConversa('${p.id}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
             <button class="btn-acao cancelar" onclick="executarAcao('${p.id}', 'cancelar')">Cancelar</button>
-            <button class="btn-acao reset" onclick="resetarConversa('${p.subscriberId}')">Reiniciar</button>
             <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
       } else if (p.status === 'ativo') {
@@ -356,23 +356,21 @@
           <div class="pedido-acoes">
             <button class="btn-acao entrega" onclick="executarAcao('${p.id}', 'entregando')">${labelAcaoEntrega}</button>
             <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar</button>
-            <button class="btn-acao conversa" onclick="verConversa('${p.subscriberId}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
+            <button class="btn-acao conversa" onclick="verConversa('${p.id}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
             <button class="btn-acao cancelar" onclick="executarAcao('${p.id}', 'cancelar')">Cancelar</button>
-            <button class="btn-acao reset" onclick="resetarConversa('${p.subscriberId}')">Reiniciar</button>
             <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
       } else if (p.status === 'em_entrega') {
         acoes = `
           <div class="pedido-acoes">
             <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar</button>
-            <button class="btn-acao conversa" onclick="verConversa('${p.subscriberId}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
-            <button class="btn-acao reset" onclick="resetarConversa('${p.subscriberId}')">Reiniciar</button>
+            <button class="btn-acao conversa" onclick="verConversa('${p.id}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
             <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
       } else {
         acoes = `
           <div class="pedido-acoes">
-            <button class="btn-acao conversa" onclick="verConversa('${p.subscriberId}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
+            <button class="btn-acao conversa" onclick="verConversa('${p.id}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
             <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
       }
@@ -423,14 +421,14 @@
     document.getElementById('modal-overlay').classList.remove('aberto');
   }
 
-  async function verConversa(subscriberId, nomeCliente) {
+  async function verConversa(pedidoId, nomeCliente) {
     document.getElementById('modal-titulo').textContent = `Conversa com ${nomeCliente}`;
     document.getElementById('modal-body').innerHTML = '<div style="color:var(--paper-dim);font-size:0.9rem;">Carregando...</div>';
     document.getElementById('modal-overlay').classList.add('aberto');
 
     try {
       const resp = await fetch(
-        `/api/historico?negocio_id=${negocioId}&senha=${encodeURIComponent(senhaAtual)}&subscriber_id=${encodeURIComponent(subscriberId)}`
+        `/api/historico?negocio_id=${negocioId}&senha=${encodeURIComponent(senhaAtual)}&pedido_id=${encodeURIComponent(pedidoId)}`
       );
       if (!resp.ok) { document.getElementById('modal-body').innerHTML = '<div style="color:var(--coral)">Erro ao carregar a conversa.</div>'; return; }
 

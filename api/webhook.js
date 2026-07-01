@@ -498,7 +498,20 @@ async function salvarPedido(negocioId, subscriberId, pedido, tipo) {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     let nomeExibicao = pedido.nome;
     if (tipo === 'produto_digital' && pedido.dados) nomeExibicao = derivarNomeDeDados(pedido.dados);
-    const registro = { ...pedido, nome: nomeExibicao, id, subscriberId, tipo: tipo || 'delivery', status: 'ativo', criadoEm: new Date().toISOString() };
+
+    // Captura o snapshot da conversa no momento em que o pedido é fechado
+    const historico = await buscarHistorico(negocioId, subscriberId);
+
+    const registro = {
+      ...pedido,
+      nome: nomeExibicao,
+      id,
+      subscriberId,
+      tipo: tipo || 'delivery',
+      status: 'ativo',
+      criadoEm: new Date().toISOString(),
+      conversaSnapshot: historico,
+    };
     await redisCommand(['LPUSH', ns(negocioId, 'pedidos'), JSON.stringify(registro)]);
     await salvarCliente(negocioId, subscriberId, registro, tipo);
   } catch (err) {
@@ -524,7 +537,8 @@ async function registrarOuAtualizarLead(negocioId, subscriberId, pedido, tipo) {
     }
 
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    const registro = { ...pedido, nome: derivarNomeDeDados(pedido.dados), id, subscriberId, tipo, status: 'lead', criadoEm: new Date().toISOString() };
+    const historico = await buscarHistorico(negocioId, subscriberId);
+    const registro = { ...pedido, nome: derivarNomeDeDados(pedido.dados), id, subscriberId, tipo, status: 'lead', criadoEm: new Date().toISOString(), conversaSnapshot: historico };
     await redisCommand(['LPUSH', chave, JSON.stringify(registro)]);
     await salvarCliente(negocioId, subscriberId, registro, tipo);
   } catch (err) {
@@ -543,7 +557,8 @@ async function confirmarCompraLead(negocioId, subscriberId, pedido, tipo) {
       const registro = JSON.parse(lista[i]);
       if (registro.subscriberId === subscriberId && registro.tipo === tipo && !['finalizado', 'cancelado'].includes(registro.status)) {
         const dadosMesclados = { ...(registro.dados || {}), ...(pedido.dados || {}) };
-        const atualizado = { ...registro, itens: pedido.itens || registro.itens, dados: dadosMesclados, nome: derivarNomeDeDados(dadosMesclados) || registro.nome, status: 'ativo', compraConfirmadaEm: new Date().toISOString() };
+        const historicoAtual = await buscarHistorico(negocioId, subscriberId);
+        const atualizado = { ...registro, itens: pedido.itens || registro.itens, dados: dadosMesclados, nome: derivarNomeDeDados(dadosMesclados) || registro.nome, status: 'ativo', compraConfirmadaEm: new Date().toISOString(), conversaSnapshot: historicoAtual };
         await redisCommand(['LSET', chave, String(i), JSON.stringify(atualizado)]);
         await salvarCliente(negocioId, subscriberId, atualizado, tipo);
         return;
