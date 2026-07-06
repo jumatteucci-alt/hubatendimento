@@ -233,7 +233,8 @@
     // Visão geral
     document.getElementById('visao-geral').innerHTML = `
       <div class="stat-row"><span>Total de pedidos</span><span class="stat-val">${r.total.pedidos}</span></div>
-      <div class="stat-row"><span>Leads em aberto</span><span class="stat-val">${r.total.leads}</span></div>
+      <div class="stat-row"><span>Leads com contato</span><span class="stat-val">${r.total.leads}</span></div>
+      <div class="stat-row"><span>Iniciaram conversa</span><span class="stat-val">${r.total.leadsIniciais || 0}</span></div>
       <div class="stat-row"><span>Cancelados</span><span class="stat-val">${r.total.cancelados}</span></div>
       <div class="stat-row"><span>Taxa de cancelamento</span><span class="stat-val">${r.total.pedidos + r.total.cancelados > 0 ? Math.round(r.total.cancelados / (r.total.pedidos + r.total.cancelados) * 100) : 0}%</span></div>
     `;

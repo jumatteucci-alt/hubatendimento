@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     const fimMesPassado = new Date(agora.getFullYear(), agora.getMonth(), 0, 23, 59, 59);
 
     // Filtra só pedidos que geram receita (não leads, não cancelados)
-    const ativos = todos.filter(p => !['cancelado', 'lead'].includes(p.status));
+    const ativos = todos.filter(p => !['cancelado', 'lead', 'lead_inicial'].includes(p.status));
 
     function filtrarPeriodo(lista, inicio, fim) {
       return lista.filter(p => {
@@ -73,6 +73,7 @@ export default async function handler(req, res) {
     const mes = filtrarPeriodo(ativos, inicioMes);
     const mesPassado = filtrarPeriodo(ativos, inicioMesPassado, fimMesPassado);
     const leads = todos.filter(p => p.status === 'lead');
+    const leadsIniciais = todos.filter(p => p.status === 'lead_inicial');
     const cancelados = todos.filter(p => p.status === 'cancelado');
 
     return res.status(200).json({
@@ -81,7 +82,7 @@ export default async function handler(req, res) {
         semana: { pedidos: semana.length, receita: somarTotal(semana) },
         mes: { pedidos: mes.length, receita: somarTotal(mes) },
         mesPassado: { pedidos: mesPassado.length, receita: somarTotal(mesPassado) },
-        total: { pedidos: ativos.length, leads: leads.length, cancelados: cancelados.length },
+        total: { pedidos: ativos.length, leads: leads.length, leadsIniciais: leadsIniciais.length, cancelados: cancelados.length },
       },
       topItens: contarItens(ativos),
       porDia: Object.entries(porDia).map(([data, v]) => ({ data, ...v })),

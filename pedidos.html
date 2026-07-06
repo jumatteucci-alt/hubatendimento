@@ -338,13 +338,14 @@
         : 'Seu pedido saiu para entrega! 🛵 Chega em breve.';
 
       let badge = '';
-      if (p.status === 'lead') badge = '<span class="badge badge-lead">Lead, ainda não comprou</span>';
+      if (p.status === 'lead_inicial') badge = '<span class="badge badge-lead">Iniciou conversa</span>';
+      else if (p.status === 'lead') badge = '<span class="badge badge-lead">Lead</span>';
       else if (p.status === 'cancelado') badge = '<span class="badge badge-cancelado">Cancelado</span>';
       else if (p.status === 'em_entrega') badge = `<span class="badge badge-entrega">${agendamento ? 'Confirmado' : 'Em entrega'}</span>`;
       else if (p.status === 'finalizado') badge = '<span class="badge badge-finalizado">Finalizado</span>';
 
       let acoes = '';
-      if (p.status === 'lead') {
+      if (p.status === 'lead_inicial' || p.status === 'lead') {
         acoes = `
           <div class="pedido-acoes">
             <button class="btn-acao conversa" onclick="verConversa('${p.id}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
@@ -397,6 +398,7 @@
             ${metaHtml}
           </div>
           <div class="pedido-hora mono">${hora}</div>
+          ${produtoDigital && p.status === 'lead_inicial' ? '<div class="pedido-hora" style="margin-top:2px;">Iniciou conversa, ainda não forneceu dados de contato.</div>' : ''}
           ${produtoDigital && p.status === 'lead' ? '<div class="pedido-hora" style="margin-top:2px;">Contato em andamento, ainda não confirmou a compra.</div>' : ''}
           ${produtoDigital && p.status !== 'lead' ? '<div class="pedido-hora" style="margin-top:2px;">Compra informada pelo próprio cliente na conversa, não confirmada via pagamento.</div>' : ''}
           ${acoes}

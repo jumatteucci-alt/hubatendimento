@@ -29,7 +29,7 @@ export default async function handler(req, res) {
 
         console.log(`[ManyChat][${negocioId}] Mensagem de ${subscriberId}: ${userText}`);
 
-        // Enriquece o perfil do Instagram na primeira interação (sem bloquear a resposta)
+        // Enriquece o perfil do Instagram na primeira interação e cria lead inicial
         enriquecerPerfilInstagram(negocioId, subscriberId).catch(() => {});
 
         // Verifica se o negócio está pausado
@@ -45,6 +45,11 @@ export default async function handler(req, res) {
           console.log(`[${negocioId}] Fora do horário de funcionamento`);
           const msgFechado = montarMensagemFechado(negocio);
           return res.status(200).json({ reply: msgFechado });
+        }
+
+        // Se for produto digital e for a primeira mensagem, cria lead inicial com nome do Instagram
+        if (negocio.tipo === 'produto_digital') {
+          await criarLeadInicialSeNaoExistir(negocioId, subscriberId, negocio);
         }
 
         const { replyText, pedidoFechado, leadCapturado, pedidoCancelado, tipoNegocio } =
@@ -155,11 +160,11 @@ REGRAS DA VENDA:
 - Sempre conduza a conversa em direção à compra. Mesmo respondendo dúvidas, retome o argumento de venda e busque o fechamento, sem ser repetitivo ou insistente a ponto de incomodar
 - Antes de mandar o link de checkout, você precisa coletar, um por um, exatamente os campos listados em "DADOS A COLETAR" abaixo. Não pule nenhum, e não peça nada além do que está nessa lista
 - Se algum desses dados já for conhecido do cliente (informado em "DADOS JÁ CONHECIDOS DESTE CLIENTE"), não pergunte de novo, só confirme rapidamente
-- Assim que você já souber pelo menos o nome e o telefone/WhatsApp do cliente (mesmo que outros campos da lista ainda faltem), ADICIONE no final da resposta este bloco, pra registrar o contato como lead, e continue normalmente coletando o que falta:
+- Assim que o cliente fornecer QUALQUER dado da lista "DADOS A COLETAR" (mesmo que seja só o primeiro campo), ADICIONE no final da resposta este bloco pra registrar o contato, e continue coletando os demais campos normalmente:
 ###LEAD###
-{"itens":["nome do produto"],"total":0,"dados":{"Nome do campo 1":"valor informado","Nome do campo 2":"valor informado"}}
+{"itens":["nome do produto"],"total":0,"dados":{"Nome do campo que já foi respondido":"valor informado"}}
 ###FIM###
-- Inclua o bloco ###LEAD### de novo sempre que coletar um dado novo do cliente, com todos os dados já conhecidos atualizados
+- Inclua o bloco ###LEAD### de novo sempre que coletar mais um dado, com TODOS os dados já conhecidos atualizados, não só o que acabou de coletar
 - Quando TODOS os campos de "DADOS A COLETAR" já tiverem sido respondidos, envie o "LINK DE CHECKOUT" abaixo pro cliente, explicando que é por ali que ele finaliza a compra
 - IMPORTANTE: você NUNCA pode dizer que a compra foi concluída ou confirmada, porque o pagamento acontece fora dessa conversa, no link de checkout, e só o cliente sabe se finalizou ou não
 - Depois de mandar o link de checkout, em mensagens seguintes, pergunte se o cliente já concluiu a compra por ali
@@ -491,7 +496,43 @@ async function salvarCliente(negocioId, subscriberId, pedido, tipo) {
   }
 }
 
-// Busca e salva dados do perfil do Instagram via API do ManyChat (na primeira interação)
+// Cria um lead inicial na primeira interação de produto digital,
+// usando o nome do Instagram que já buscamos via ManyChat
+async function criarLeadInicialSeNaoExistir(negocioId, subscriberId, negocio) {
+  try {
+    const chave = ns(negocioId, 'pedidos');
+    const resultado = await redisCommand(['LRANGE', chave, '0', '99']);
+    const lista = resultado?.result || [];
+
+    // Verifica se já existe algum registro pra esse subscriber
+    const jaExiste = lista.some(b => {
+      const p = JSON.parse(b);
+      return p.subscriberId === subscriberId && !['finalizado', 'cancelado'].includes(p.status);
+    });
+    if (jaExiste) return;
+
+    // Busca o nome do Instagram (pode já estar salvo se enriquecerPerfilInstagram rodou)
+    const perfil = await buscarCliente(negocioId, subscriberId);
+    const nomeInstagram = perfil?.instagramNome || perfil?.instagramUsername || null;
+    if (!nomeInstagram) return; // sem nome ainda, tenta de novo na próxima mensagem
+
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const registro = {
+      id,
+      subscriberId,
+      tipo: 'produto_digital',
+      status: 'lead_inicial',
+      nome: nomeInstagram,
+      itens: [negocio.nomeProduto || negocio.nome || 'Produto digital'],
+      dados: { 'Nome Instagram': nomeInstagram },
+      criadoEm: new Date().toISOString(),
+    };
+    await redisCommand(['LPUSH', chave, JSON.stringify(registro)]);
+    console.log(`[${negocioId}] Lead inicial criado para ${subscriberId} (${nomeInstagram})`);
+  } catch (err) {
+    console.error('Erro ao criar lead inicial:', err);
+  }
+}
 async function enriquecerPerfilInstagram(negocioId, subscriberId) {
   try {
     // Verifica se já tem perfil do Instagram salvo pra não buscar toda vez
@@ -566,13 +607,21 @@ async function registrarOuAtualizarLead(negocioId, subscriberId, pedido, tipo) {
       const registro = JSON.parse(lista[i]);
       if (registro.subscriberId === subscriberId && registro.tipo === tipo && !['finalizado', 'cancelado'].includes(registro.status)) {
         const dadosMesclados = { ...(registro.dados || {}), ...(pedido.dados || {}) };
-        const atualizado = { ...registro, itens: pedido.itens || registro.itens, dados: dadosMesclados, nome: derivarNomeDeDados(dadosMesclados) || registro.nome };
+        const atualizado = {
+          ...registro,
+          itens: pedido.itens || registro.itens,
+          dados: dadosMesclados,
+          nome: derivarNomeDeDados(dadosMesclados) || registro.nome,
+          // Faz upgrade de lead_inicial pra lead assim que chegar dado via conversa
+          status: registro.status === 'lead_inicial' ? 'lead' : registro.status,
+        };
         await redisCommand(['LSET', chave, String(i), JSON.stringify(atualizado)]);
         await salvarCliente(negocioId, subscriberId, atualizado, tipo);
         return;
       }
     }
 
+    // Não achou registro, cria novo como lead
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     const historico = await buscarHistorico(negocioId, subscriberId);
     const registro = { ...pedido, nome: derivarNomeDeDados(pedido.dados), id, subscriberId, tipo, status: 'lead', criadoEm: new Date().toISOString(), conversaSnapshot: historico };
