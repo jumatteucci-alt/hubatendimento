@@ -71,19 +71,60 @@ export default async function handler(req, res) {
         return res.status(200).json({ reply: replyText });
       }
 
-      // FORMATO META DIRETO (Instagram / WhatsApp sem intermediário)
-      const entry         = body.entry?.[0];
-      const change        = entry?.changes?.[0];
-      const value         = change?.value;
+      // FORMATO META DIRETO (Instagram sem intermediário)
+      // A Meta envia os eventos em dois formatos dependendo da versão da API:
+      // 1. entry[0].messaging[0] (formato Messenger/Instagram antigo)
+      // 2. entry[0].changes[0].value (formato Instagram Business atual)
+      const entry = body.entry?.[0];
       const messagingEvent = entry?.messaging?.[0];
-      const senderId      = value?.sender?.id || messagingEvent?.sender?.id;
-      const userText      = value?.message?.text || messagingEvent?.message?.text;
+      const change = entry?.changes?.[0];
+      const value = change?.value;
+
+      // Extrai remetente e texto nos dois formatos
+      const senderId = messagingEvent?.sender?.id || value?.sender?.id;
+      const userText = messagingEvent?.message?.text || value?.message?.text;
+      const isEcho = messagingEvent?.message?.is_echo || value?.message?.is_echo;
+
+      // Ignora mensagens enviadas pelo próprio bot (echo)
+      if (isEcho) {
+        console.log('Echo ignorado');
+        return res.status(200).send('EVENT_RECEIVED');
+      }
 
       if (senderId && userText) {
-        console.log(`Mensagem recebida de ${senderId}: ${userText}`);
-        await sendInstagramReply(senderId, `Recebi sua mensagem: "${userText}". Em breve um agente de IA vai responder isso automaticamente.`);
+        console.log(`[Meta Direto] Mensagem de ${senderId}: ${userText}`);
+
+        // Usa o negocio_id configurado no ambiente, ou 'default'
+        const negocioId = process.env.NEGOCIO_ID_DIRETO || 'default';
+
+        // Verifica pausa e horário
+        const pausado = await estaAtendimentoPausado(negocioId);
+        if (pausado) {
+          await sendInstagramReply(senderId, 'Estamos temporariamente fora do ar. Em breve voltamos! 🙏');
+          return res.status(200).send('EVENT_RECEIVED');
+        }
+
+        const negocio = await buscarNegocio(negocioId);
+        if (!verificarHorario(negocio)) {
+          await sendInstagramReply(senderId, montarMensagemFechado(negocio));
+          return res.status(200).send('EVENT_RECEIVED');
+        }
+
+        if (negocio.tipo === 'produto_digital') {
+          await criarLeadInicialSeNaoExistir(negocioId, senderId, negocio);
+        }
+
+        const { replyText, pedidoFechado, leadCapturado, pedidoCancelado, tipoNegocio } =
+          await processarMensagem(negocioId, senderId, userText, negocio);
+
+        if (leadCapturado) await registrarOuAtualizarLead(negocioId, senderId, leadCapturado, tipoNegocio);
+        if (pedidoFechado) await confirmarCompraLead(negocioId, senderId, pedidoFechado, tipoNegocio);
+        if (pedidoCancelado) await cancelarUltimoPedido(negocioId, senderId);
+
+        // Envia resposta direto pela Graph API (sem ManyChat)
+        await sendInstagramReply(senderId, replyText);
       } else {
-        console.log('Nenhuma mensagem de texto encontrada nos formatos conhecidos.');
+        console.log('[Meta Direto] Evento sem mensagem de texto (reação, sticker, etc) — ignorado');
       }
 
       return res.status(200).send('EVENT_RECEIVED');
