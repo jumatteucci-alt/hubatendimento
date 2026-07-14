@@ -22,28 +22,29 @@ export default async function handler(req, res) {
 
     try {
       // FORMATO EVOLUTION API (WhatsApp via Baileys)
-      // O Evolution API manda eventos com event: "messages.upsert" e data.key.remoteJid
       if (body.event === 'messages.upsert' && body.data) {
         const msg = body.data;
 
         // Ignora mensagens enviadas pelo próprio bot e mensagens de grupo
         if (msg.key?.fromMe) return res.status(200).send('OK');
         const remoteJid = msg.key?.remoteJid || '';
-        if (remoteJid.endsWith('@g.us')) return res.status(200).send('OK'); // grupo
+        if (remoteJid.endsWith('@g.us')) return res.status(200).send('OK');
 
+        // Extrai o texto da mensagem no formato real do Evolution API
         const userText = msg.message?.conversation
           || msg.message?.extendedTextMessage?.text
           || msg.message?.imageMessage?.caption
+          || msg.message?.videoMessage?.caption
           || '';
 
-        if (!userText) return res.status(200).send('OK');
+        if (!userText.trim()) return res.status(200).send('OK');
 
-        // instanceName vem no body — usamos como negocio_id ou buscamos no Redis
         const instanceName = body.instance || 'hubatendimento';
         const negocioId = await buscarNegocioPorInstancia(instanceName);
-        const subscriberId = remoteJid; // ex: 5511999999999@s.whatsapp.net
+        const subscriberId = remoteJid;
+        const nomeContato = msg.pushName || null;
 
-        console.log(`[Evolution][${negocioId}] Mensagem de ${subscriberId}: ${userText}`);
+        console.log(`[Evolution][${negocioId}] Mensagem de ${subscriberId} (${nomeContato}): ${userText}`);
 
         const pausado = await estaAtendimentoPausado(negocioId);
         if (pausado) {
