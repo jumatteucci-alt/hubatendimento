@@ -48,6 +48,10 @@ export default async function handler(req, res) {
 
         console.log(`[Evolution][${negocioId}] Mensagem de ${subscriberId} (${nomeContato}): ${userText}`);
 
+        // Log do histórico pra diagnóstico
+        const historicoDebug = await buscarHistorico(negocioId, subscriberId);
+        console.log(`[Evolution] Histórico encontrado: ${historicoDebug.length} mensagens`);
+
         const pausado = await estaAtendimentoPausado(negocioId);
         if (pausado) {
           await sendWhatsAppReply(instanceName, subscriberId, 'Estamos temporariamente fora do ar. Em breve voltamos! 🙏');
