@@ -844,6 +844,7 @@ async function buscarNegocioPorInstancia(instanceName) {
 async function sendWhatsAppReply(instanceName, remoteJid, text) {
   try {
     const url = `${process.env.EVOLUTION_API_URL}/message/sendText/${instanceName}`;
+    console.log(`[Evolution] Enviando pra ${remoteJid}: "${text.slice(0, 50)}..."`);
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -855,8 +856,11 @@ async function sendWhatsAppReply(instanceName, remoteJid, text) {
         text,
       }),
     });
+    const resultado = await response.text();
     if (!response.ok) {
-      console.error('Erro ao enviar mensagem WhatsApp:', await response.text());
+      console.error('Erro ao enviar mensagem WhatsApp:', resultado);
+    } else {
+      console.log('[Evolution] Mensagem enviada com sucesso:', resultado.slice(0, 100));
     }
   } catch (err) {
     console.error('Erro ao enviar mensagem WhatsApp:', err);
