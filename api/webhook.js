@@ -21,6 +21,57 @@ export default async function handler(req, res) {
     console.log('PAYLOAD COMPLETO RECEBIDO:', JSON.stringify(body));
 
     try {
+      // FORMATO EVOLUTION API (WhatsApp via Baileys)
+      // O Evolution API manda eventos com event: "messages.upsert" e data.key.remoteJid
+      if (body.event === 'messages.upsert' && body.data) {
+        const msg = body.data;
+
+        // Ignora mensagens enviadas pelo próprio bot e mensagens de grupo
+        if (msg.key?.fromMe) return res.status(200).send('OK');
+        const remoteJid = msg.key?.remoteJid || '';
+        if (remoteJid.endsWith('@g.us')) return res.status(200).send('OK'); // grupo
+
+        const userText = msg.message?.conversation
+          || msg.message?.extendedTextMessage?.text
+          || msg.message?.imageMessage?.caption
+          || '';
+
+        if (!userText) return res.status(200).send('OK');
+
+        // instanceName vem no body — usamos como negocio_id ou buscamos no Redis
+        const instanceName = body.instance || 'hubatendimento';
+        const negocioId = await buscarNegocioPorInstancia(instanceName);
+        const subscriberId = remoteJid; // ex: 5511999999999@s.whatsapp.net
+
+        console.log(`[Evolution][${negocioId}] Mensagem de ${subscriberId}: ${userText}`);
+
+        const pausado = await estaAtendimentoPausado(negocioId);
+        if (pausado) {
+          await sendWhatsAppReply(instanceName, subscriberId, 'Estamos temporariamente fora do ar. Em breve voltamos! 🙏');
+          return res.status(200).send('OK');
+        }
+
+        const negocio = await buscarNegocio(negocioId);
+        if (!verificarHorario(negocio)) {
+          await sendWhatsAppReply(instanceName, subscriberId, montarMensagemFechado(negocio));
+          return res.status(200).send('OK');
+        }
+
+        if (negocio.tipo === 'produto_digital') {
+          await criarLeadInicialSeNaoExistir(negocioId, subscriberId, negocio);
+        }
+
+        const { replyText, pedidoFechado, leadCapturado, pedidoCancelado, tipoNegocio } =
+          await processarMensagem(negocioId, subscriberId, userText, negocio);
+
+        if (leadCapturado) await registrarOuAtualizarLead(negocioId, subscriberId, leadCapturado, tipoNegocio);
+        if (pedidoFechado) await confirmarCompraLead(negocioId, subscriberId, pedidoFechado, tipoNegocio);
+        if (pedidoCancelado) await cancelarUltimoPedido(negocioId, subscriberId);
+
+        await sendWhatsAppReply(instanceName, subscriberId, replyText);
+        return res.status(200).send('OK');
+      }
+
       // FORMATO MANYCHAT
       if (body.source === 'manychat') {
         const userText     = body.text || '';
@@ -121,8 +172,13 @@ export default async function handler(req, res) {
         if (pedidoFechado) await confirmarCompraLead(negocioId, senderId, pedidoFechado, tipoNegocio);
         if (pedidoCancelado) await cancelarUltimoPedido(negocioId, senderId);
 
-        // Envia resposta direto pela Graph API (sem ManyChat)
-        await sendInstagramReply(senderId, replyText);
+        // Payload de teste da Meta usa IDs fictícios (12334/23245) — processa mas não tenta enviar
+        const isTestPayload = senderId === '12334' || senderId === '23245';
+        if (isTestPayload) {
+          console.log(`[Meta Direto] Payload de teste detectado — resposta seria: "${replyText}"`);
+        } else {
+          await sendInstagramReply(senderId, replyText);
+        }
       } else {
         console.log('[Meta Direto] Evento sem mensagem de texto (reação, sticker, etc) — ignorado');
       }
@@ -767,6 +823,40 @@ async function registrarAlertaHumano(negocioId, subscriberId, nomeConhecido, men
     await redisCommand(['LPUSH', ns(negocioId, 'alertas_humano'), JSON.stringify(registro)]);
   } catch (err) {
     console.error('Erro ao registrar alerta de humano:', err);
+  }
+}
+
+// ─── WhatsApp via Evolution API ──────────────────────────────────────────────
+
+async function buscarNegocioPorInstancia(instanceName) {
+  try {
+    // Busca o negocio_id mapeado pra essa instância do Evolution
+    const resultado = await redisCommand(['GET', `evolution:instancia:${instanceName}`]);
+    return resultado?.result || 'default';
+  } catch (err) {
+    return 'default';
+  }
+}
+
+async function sendWhatsAppReply(instanceName, remoteJid, text) {
+  try {
+    const url = `${process.env.EVOLUTION_API_URL}/message/sendText/${instanceName}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': process.env.EVOLUTION_API_KEY,
+      },
+      body: JSON.stringify({
+        number: remoteJid,
+        text,
+      }),
+    });
+    if (!response.ok) {
+      console.error('Erro ao enviar mensagem WhatsApp:', await response.text());
+    }
+  } catch (err) {
+    console.error('Erro ao enviar mensagem WhatsApp:', err);
   }
 }
 
