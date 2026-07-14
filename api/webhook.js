@@ -21,6 +21,8 @@ export default async function handler(req, res) {
     console.log('PAYLOAD COMPLETO RECEBIDO:', JSON.stringify(body));
 
     try {
+      console.log('EVENT:', body.event, '| SOURCE:', body.source, '| HAS DATA:', !!body.data);
+
       // FORMATO EVOLUTION API (WhatsApp via Baileys)
       if (body.event === 'messages.upsert' && body.data) {
         const msg = body.data;
