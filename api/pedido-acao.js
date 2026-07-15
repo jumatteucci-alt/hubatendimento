@@ -19,7 +19,24 @@ export default async function handler(req, res) {
 
     if (acao === 'resetar_conversa') {
       if (!subscriberId) return res.status(400).json({ error: 'subscriberId é obrigatório' });
+
+      // Apaga o histórico de conversa
       await redisCommand(['DEL', `n:${negocioId}:historico:${subscriberId}`]);
+
+      // Limpa os dados coletados do cliente (ex: nome, WhatsApp, datas)
+      // mas preserva o perfil do Instagram (foto, username, nome)
+      const clienteRaw = await redisCommand(['GET', `n:${negocioId}:cliente:${subscriberId}`]);
+      if (clienteRaw?.result) {
+        const cliente = JSON.parse(clienteRaw.result);
+        const perfilLimpo = {
+          instagramUsername: cliente.instagramUsername || null,
+          instagramNome: cliente.instagramNome || null,
+          instagramFoto: cliente.instagramFoto || null,
+          atualizadoEm: new Date().toISOString(),
+        };
+        await redisCommand(['SET', `n:${negocioId}:cliente:${subscriberId}`, JSON.stringify(perfilLimpo)]);
+      }
+
       return res.status(200).json({ ok: true });
     }
 
