@@ -268,7 +268,10 @@ REGRAS DE MENSAGEM DE ENTRADA (anúncio):
 REGRAS DA VENDA:
 - Use o "TEXTO PERSUASIVO" abaixo como base para argumentar a favor do produto, adaptando ao que o cliente perguntar, sem simplesmente colar o texto inteiro de uma vez
 - Não invente benefício, resultado, número, percentual ou garantia que não esteja literalmente escrito no texto persuasivo. Nunca arredonde, estime ou crie um exemplo numérico que não esteja lá
-- Sempre conduza a conversa em direção ao interesse do cliente. Mesmo respondendo dúvidas, retome o argumento de venda e busque o fechamento, sem ser repetitivo ou insistente a ponto de incomodar
+- Sempre conduza a conversa em direção ao interesse do cliente. Mesmo respondendo dúvidas, retome o argumento de venda e busque o fechamento
+- Se o cliente demonstrar hesitação, frieza ou disser que "não quer no momento", "vai pensar" ou algo parecido, NÃO desista imediatamente. Tente reverter UMA vez com um argumento genuíno e específico (ex: destacar um benefício que ele ainda não considerou, mencionar que as datas disponíveis são limitadas, ou reforçar o custo-benefício). Só encerre cordialmente se ele insistir na recusa após essa tentativa
+- Quando relevante, mencione que Buenos Aires é uma das cidades mais vibrantes e acessíveis da América do Sul, com gastronomia, tango, arquitetura europeia e vida noturna — use isso como argumento de desejo, não apenas como descrição
+- Se o cliente perguntar sobre meses disponíveis ou quando pode viajar, consulte a lista em "MESES DISPONÍVEIS" abaixo e responda com base nela
 - Você precisa coletar, um por um, exatamente os campos listados em "DADOS A COLETAR" abaixo. Não pule nenhum, e não peça nada além do que está nessa lista
 - Se algum desses dados já for conhecido do cliente (informado em "DADOS JÁ CONHECIDOS DESTE CLIENTE"), não pergunte de novo, só confirme rapidamente
 - Assim que o cliente fornecer QUALQUER dado da lista "DADOS A COLETAR" (mesmo que seja só o primeiro campo), ADICIONE no final da resposta este bloco pra registrar o contato, e continue coletando os demais campos normalmente:
@@ -345,6 +348,10 @@ function montarSystemPrompt(negocio, cliente, horariosOcupados, primeiraMensagem
 REGRA INVIOLÁVEL: todo número, resultado ou afirmação que você usar precisa estar literalmente presente no texto persuasivo abaixo.`
       : '';
 
+    const mesesTexto = (negocio.mesesDisponiveis && negocio.mesesDisponiveis.length)
+      ? negocio.mesesDisponiveis.join(', ')
+      : '(sem restrição de mês — datas flexíveis o ano todo)';
+
     const precoFormatado = `a partir de R$ ${Number(negocio.precoProduto || 0).toFixed(2).replace('.', ',')}`;
     const descontoAvista = negocio.descontoAvista
       ? `\nDESCONTO À VISTA: ${negocio.descontoAvista}% de desconto — valor à vista: R$ ${(Number(negocio.precoProduto || 0) * (1 - Number(negocio.descontoAvista) / 100)).toFixed(2).replace('.', ',')}`
@@ -360,6 +367,9 @@ ${negocio.descricaoOferta || '(não preenchido)'}
 
 TEXTO PERSUASIVO (use como base para os argumentos de venda):
 ${negocio.textoPersuasivo || '(não preenchido)'}
+
+MESES DISPONÍVEIS PARA O PACOTE:
+${mesesTexto}
 
 DADOS A COLETAR (peça exatamente estes, um a um, antes de encaminhar o interessado para o responsável):
 ${camposTexto}${blocoClienteDados}${instrucaoPrimeiraMensagem}`;

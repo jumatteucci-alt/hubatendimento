@@ -177,6 +177,24 @@
       <label for="linkCheckout">Link de checkout (opcional)</label>
       <input type="text" id="linkCheckout" placeholder="https://...">
     </div>
+    <div class="field" id="campo-meses-disponiveis">
+      <label>Meses disponíveis para o pacote</label>
+      <p style="font-size:0.82rem;color:var(--paper-dim);margin-bottom:10px;">O bot vai consultar esses meses e mencionar naturalmente na conversa. Deixe em branco se o produto não tem sazonalidade.</p>
+      <div id="meses-checkboxes" style="display:flex;gap:8px;flex-wrap:wrap;">
+        <label class="dia-check"><input type="checkbox" name="mes" value="Janeiro"> Jan</label>
+        <label class="dia-check"><input type="checkbox" name="mes" value="Fevereiro"> Fev</label>
+        <label class="dia-check"><input type="checkbox" name="mes" value="Março"> Mar</label>
+        <label class="dia-check"><input type="checkbox" name="mes" value="Abril"> Abr</label>
+        <label class="dia-check"><input type="checkbox" name="mes" value="Maio"> Mai</label>
+        <label class="dia-check"><input type="checkbox" name="mes" value="Junho"> Jun</label>
+        <label class="dia-check"><input type="checkbox" name="mes" value="Julho"> Jul</label>
+        <label class="dia-check"><input type="checkbox" name="mes" value="Agosto"> Ago</label>
+        <label class="dia-check"><input type="checkbox" name="mes" value="Setembro"> Set</label>
+        <label class="dia-check"><input type="checkbox" name="mes" value="Outubro"> Out</label>
+        <label class="dia-check"><input type="checkbox" name="mes" value="Novembro"> Nov</label>
+        <label class="dia-check"><input type="checkbox" name="mes" value="Dezembro"> Dez</label>
+      </div>
+    </div>
     <div class="field">
       <label for="descricaoOferta">Descrição da oferta</label>
       <textarea id="descricaoOferta" rows="3" placeholder="Resumo curto do que o cliente recebe ao comprar"></textarea>
@@ -329,6 +347,12 @@
     document.getElementById('taxaEntrega').value = negocio.taxaEntrega ?? '';
     document.getElementById('nomeProduto').value = negocio.nomeProduto || '';
     document.getElementById('precoProduto').value = negocio.precoProduto ?? '';
+
+    // Preenche meses disponíveis
+    const mesesDisponiveis = negocio.mesesDisponiveis || [];
+    document.querySelectorAll('#meses-checkboxes input[type="checkbox"]').forEach(cb => {
+      cb.checked = mesesDisponiveis.includes(cb.value);
+    });
     document.getElementById('descontoAvista').value = negocio.descontoAvista ?? '';
     document.getElementById('linkCheckout').value = negocio.linkCheckout || '';
     document.getElementById('descricaoOferta').value = negocio.descricaoOferta || '';
@@ -405,6 +429,7 @@
       descricaoOferta: document.getElementById('descricaoOferta').value.trim(),
       textoPersuasivo: document.getElementById('textoPersuasivo').value.trim(),
       camposColeta,
+      mesesDisponiveis: Array.from(document.querySelectorAll('#meses-checkboxes input:checked')).map(c => c.value),
     };
 
     const status = document.getElementById('save-status');
