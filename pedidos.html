@@ -344,11 +344,16 @@
       else if (p.status === 'em_entrega') badge = `<span class="badge badge-entrega">${agendamento ? 'Confirmado' : 'Em entrega'}</span>`;
       else if (p.status === 'finalizado') badge = '<span class="badge badge-finalizado">Finalizado</span>';
 
+      const btnLimpar = p.subscriberId
+        ? `<button class="btn-acao conversa" onclick="resetarConversa('${p.subscriberId}')">Limpar conversa</button>`
+        : '';
+
       let acoes = '';
       if (p.status === 'lead_inicial' || p.status === 'lead') {
         acoes = `
           <div class="pedido-acoes">
             <button class="btn-acao conversa" onclick="verConversa('${p.id}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
+            ${btnLimpar}
             <button class="btn-acao cancelar" onclick="executarAcao('${p.id}', 'cancelar')">Cancelar</button>
             <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
@@ -358,6 +363,7 @@
             <button class="btn-acao entrega" onclick="executarAcao('${p.id}', 'entregando')">${labelAcaoEntrega}</button>
             <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar</button>
             <button class="btn-acao conversa" onclick="verConversa('${p.id}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
+            ${btnLimpar}
             <button class="btn-acao cancelar" onclick="executarAcao('${p.id}', 'cancelar')">Cancelar</button>
             <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
@@ -366,12 +372,14 @@
           <div class="pedido-acoes">
             <button class="btn-acao finalizar" onclick="executarAcao('${p.id}', 'finalizar')">Finalizar</button>
             <button class="btn-acao conversa" onclick="verConversa('${p.id}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
+            ${btnLimpar}
             <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
       } else {
         acoes = `
           <div class="pedido-acoes">
             <button class="btn-acao conversa" onclick="verConversa('${p.id}', '${escapeHtml(p.nome || 'Cliente')}')">Ver conversa</button>
+            ${btnLimpar}
             <button class="btn-acao excluir" onclick="confirmarExclusao('${p.id}')">Excluir</button>
           </div>`;
       }
