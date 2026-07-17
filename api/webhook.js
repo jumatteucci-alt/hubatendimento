@@ -254,38 +254,32 @@ REGRAS DO AGENDAMENTO:
 ###CANCELAR###
 - Se o cliente disser "cancelar" mas ainda não tinha confirmado nenhum agendamento na conversa, apenas confirme que não há nada pra cancelar, sem incluir nenhum bloco`;
 
-const PROMPT_PRODUTO_DIGITAL = `Você é o atendente virtual de venda de um produto ou serviço, via Instagram.
+const PROMPT_PRODUTO_DIGITAL = `Você é o atendente virtual de venda de um produto digital, via Instagram.
 
 ${PROMPT_COMUM}
-
-REGRAS SOBRE O PREÇO:
-- O preço informado em "PREÇO" é sempre o valor de referência (preço cheio parcelado). Sempre apresente como "a partir de R$ X" pois o valor final pode variar conforme as datas, condições ou opções escolhidas pelo cliente
-- Se houver desconto à vista, mencione como uma vantagem adicional, não como o preço principal
-
-REGRAS DE MENSAGEM DE ENTRADA (anúncio):
-- Se a primeira mensagem do cliente contiver palavras-chave como "pacote", "quero saber mais", "interesse", "anúncio", ou mencionar diretamente o nome do produto, entenda que ele veio de um anúncio e já inicie apresentando o produto diretamente, sem perguntar "como posso ajudar?"
 
 REGRAS DA VENDA:
 - Use o "TEXTO PERSUASIVO" abaixo como base para argumentar a favor do produto, adaptando ao que o cliente perguntar, sem simplesmente colar o texto inteiro de uma vez
 - Não invente benefício, resultado, número, percentual ou garantia que não esteja literalmente escrito no texto persuasivo. Nunca arredonde, estime ou crie um exemplo numérico que não esteja lá
-- Sempre conduza a conversa em direção ao interesse do cliente. Mesmo respondendo dúvidas, retome o argumento de venda e busque o fechamento
-- Se o cliente demonstrar hesitação, frieza ou disser que "não quer no momento", "vai pensar" ou algo parecido, NÃO desista imediatamente. Tente reverter UMA vez com um argumento genuíno e específico (ex: destacar um benefício que ele ainda não considerou, mencionar que as datas disponíveis são limitadas, ou reforçar o custo-benefício). Só encerre cordialmente se ele insistir na recusa após essa tentativa
-- Quando relevante, mencione que Buenos Aires é uma das cidades mais vibrantes e acessíveis da América do Sul, com gastronomia, tango, arquitetura europeia e vida noturna — use isso como argumento de desejo, não apenas como descrição
-- Se o cliente perguntar sobre meses disponíveis ou quando pode viajar, consulte a lista em "MESES DISPONÍVEIS" abaixo e responda com base nela
-- REGRA DE PAGAMENTO: NÃO pergunte forma de pagamento como campo obrigatório de coleta. Só mencione as opções de pagamento (parcelado ou à vista) se o cliente perguntar sobre preço ou demonstrar intenção clara de fechar. O objetivo é qualificar o lead e conseguir o contato — o fechamento financeiro fica pro responsável
-- Você precisa coletar, um por um, exatamente os campos listados em "DADOS A COLETAR" abaixo. Não pule nenhum, e não peça nada além do que está nessa lista
+- Sempre conduza a conversa em direção à compra. Mesmo respondendo dúvidas, retome o argumento de venda e busque o fechamento, sem ser repetitivo ou insistente a ponto de incomodar
+- Antes de mandar o link de checkout, você precisa coletar, um por um, exatamente os campos listados em "DADOS A COLETAR" abaixo. Não pule nenhum, e não peça nada além do que está nessa lista
 - Se algum desses dados já for conhecido do cliente (informado em "DADOS JÁ CONHECIDOS DESTE CLIENTE"), não pergunte de novo, só confirme rapidamente
 - Assim que o cliente fornecer QUALQUER dado da lista "DADOS A COLETAR" (mesmo que seja só o primeiro campo), ADICIONE no final da resposta este bloco pra registrar o contato, e continue coletando os demais campos normalmente:
 ###LEAD###
 {"itens":["nome do produto"],"total":0,"dados":{"Nome do campo que já foi respondido":"valor informado"}}
 ###FIM###
 - Inclua o bloco ###LEAD### de novo sempre que coletar mais um dado, com TODOS os dados já conhecidos atualizados, não só o que acabou de coletar
-
-REGRAS DE FINALIZAÇÃO (sem checkout online):
-- Quando TODOS os campos de "DADOS A COLETAR" já tiverem sido respondidos, NÃO mande nenhum link de pagamento. Em vez disso, agradeça pelo interesse, diga que o responsável vai entrar em contato pelo WhatsApp informado para finalizar tudo, e encerre a conversa de forma calorosa
-- NUNCA diga que a compra foi concluída ou confirmada, pois o fechamento acontece fora dessa conversa, pelo responsável
-- Se o cliente pedir pra CANCELAR ou desistir antes de o responsável entrar em contato, responda de forma simpática dizendo que tudo bem e que não há nada confirmado ainda
-- Se o cliente disser "cancelar" mas ainda não tinha fornecido nenhum dado, apenas confirme que não há nada a cancelar, sem incluir nenhum bloco`;
+- Quando TODOS os campos de "DADOS A COLETAR" já tiverem sido respondidos, envie o "LINK DE CHECKOUT" abaixo pro cliente, explicando que é por ali que ele finaliza a compra
+- IMPORTANTE: você NUNCA pode dizer que a compra foi concluída ou confirmada, porque o pagamento acontece fora dessa conversa, no link de checkout, e só o cliente sabe se finalizou ou não
+- Depois de mandar o link de checkout, em mensagens seguintes, pergunte se o cliente já concluiu a compra por ali
+- Quando o cliente confirmar explicitamente que JÁ COMPROU, agradeça e ADICIONE no final da sua resposta um bloco assim:
+###PEDIDO###
+{"itens":["nome do produto"],"total":0,"dados":{"Nome do campo 1":"valor informado","Nome do campo 2":"valor informado"}}
+###FIM###
+- NUNCA inclua o bloco ###PEDIDO### antes do cliente confirmar explicitamente que concluiu a compra. Só coletar os dados e mandar o link não é suficiente pra isso, use ###LEAD### nesse caso
+- Se o cliente pedir pra CANCELAR uma compra já confirmada antes, responda confirmando o cancelamento de forma simpática, e ADICIONE no final da resposta este bloco, exatamente assim:
+###CANCELAR###
+- Se o cliente disser "cancelar" mas ainda não tinha confirmado nenhuma compra na conversa, apenas confirme que não há nada pra cancelar, sem incluir nenhum bloco`;
 
 // ─── Negócio padrão (fallback enquanto não há cadastro) ─────────────────────
 
@@ -333,7 +327,7 @@ function montarSystemPrompt(negocio, cliente, horariosOcupados, primeiraMensagem
   if (tipo === 'produto_digital') {
     const camposTexto = (negocio.camposColeta && negocio.camposColeta.length)
       ? negocio.camposColeta.map(c => `- ${c}`).join('\n')
-      : '- Nome completo\n- WhatsApp';
+      : '- Nome completo\n- E-mail\n- Forma de pagamento';
 
     let blocoClienteDados = '';
     if (cliente && cliente.dados && Object.keys(cliente.dados).length) {
@@ -349,19 +343,10 @@ function montarSystemPrompt(negocio, cliente, horariosOcupados, primeiraMensagem
 REGRA INVIOLÁVEL: todo número, resultado ou afirmação que você usar precisa estar literalmente presente no texto persuasivo abaixo.`
       : '';
 
-    const mesesTexto = (negocio.mesesDisponiveis && negocio.mesesDisponiveis.length)
-      ? negocio.mesesDisponiveis.join(', ')
-      : '(sem restrição de mês — datas flexíveis o ano todo)';
-
-    const precoFormatado = `a partir de R$ ${Number(negocio.precoProduto || 0).toFixed(2).replace('.', ',')}`;
-    const descontoAvista = negocio.descontoAvista
-      ? `\nDESCONTO À VISTA: ${negocio.descontoAvista}% de desconto — valor à vista: R$ ${(Number(negocio.precoProduto || 0) * (1 - Number(negocio.descontoAvista) / 100)).toFixed(2).replace('.', ',')}`
-      : '';
-
     return `${promptBase}
 
 PRODUTO: ${negocio.nomeProduto || negocio.nome || '(sem nome definido)'}
-PREÇO: ${precoFormatado}${descontoAvista}
+PREÇO: R$ ${Number(negocio.precoProduto || 0).toFixed(2).replace('.', ',')}
 
 DESCRIÇÃO DA OFERTA:
 ${negocio.descricaoOferta || '(não preenchido)'}
@@ -369,10 +354,10 @@ ${negocio.descricaoOferta || '(não preenchido)'}
 TEXTO PERSUASIVO (use como base para os argumentos de venda):
 ${negocio.textoPersuasivo || '(não preenchido)'}
 
-MESES DISPONÍVEIS PARA O PACOTE:
-${mesesTexto}
+LINK DE CHECKOUT (envie esse link exato quando os dados já tiverem sido coletados):
+${negocio.linkCheckout || '(não preenchido, avise no painel que falta cadastrar)'}
 
-DADOS A COLETAR (peça exatamente estes, um a um, antes de encaminhar o interessado para o responsável):
+DADOS A COLETAR (peça exatamente estes, um a um, antes de mandar o link de checkout):
 ${camposTexto}${blocoClienteDados}${instrucaoPrimeiraMensagem}`;
   }
 
@@ -863,7 +848,10 @@ async function buscarNegocioPorInstancia(instanceName) {
 async function sendWhatsAppReply(instanceName, remoteJid, text) {
   try {
     const url = `${process.env.EVOLUTION_API_URL}/message/sendText/${instanceName}`;
-    console.log(`[Evolution] Enviando pra ${remoteJid}: "${text.slice(0, 50)}..."`);
+    // Remove o sufixo @s.whatsapp.net se presente — o Evolution API aceita os dois formatos
+    // mas alguns números só funcionam com o número puro
+    const numero = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+    console.log(`[Evolution] Enviando pra ${numero}: "${text.slice(0, 50)}..."`);
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -871,7 +859,7 @@ async function sendWhatsAppReply(instanceName, remoteJid, text) {
         'apikey': process.env.EVOLUTION_API_KEY,
       },
       body: JSON.stringify({
-        number: remoteJid,
+        number: numero,
         text,
       }),
     });
