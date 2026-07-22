@@ -11,6 +11,44 @@ export default async function handler(req, res) {
   if (!senhaValida) return res.status(401).json({ error: 'Senha inválida' });
 
   try {
+    if (acao === 'assumir_conversa') {
+      if (!subscriberId) return res.status(400).json({ error: 'subscriberId é obrigatório' });
+      // Marca o subscriber como assumido por humano no Redis
+      await redisCommand(['SET', `n:${negocioId}:humano:${subscriberId}`, '1']);
+      // Atualiza o campo no pedido também
+      if (id) {
+        const chave = `n:${negocioId}:pedidos`;
+        const lista = (await redisCommand(['LRANGE', chave, '0', '99']))?.result || [];
+        for (let i = 0; i < lista.length; i++) {
+          const pedido = JSON.parse(lista[i]);
+          if (pedido.id === id) {
+            pedido.assumidoPorHumano = true;
+            await redisCommand(['LSET', chave, String(i), JSON.stringify(pedido)]);
+            break;
+          }
+        }
+      }
+      return res.status(200).json({ ok: true });
+    }
+
+    if (acao === 'devolver_bot') {
+      if (!subscriberId) return res.status(400).json({ error: 'subscriberId é obrigatório' });
+      await redisCommand(['DEL', `n:${negocioId}:humano:${subscriberId}`]);
+      if (id) {
+        const chave = `n:${negocioId}:pedidos`;
+        const lista = (await redisCommand(['LRANGE', chave, '0', '99']))?.result || [];
+        for (let i = 0; i < lista.length; i++) {
+          const pedido = JSON.parse(lista[i]);
+          if (pedido.id === id) {
+            pedido.assumidoPorHumano = false;
+            await redisCommand(['LSET', chave, String(i), JSON.stringify(pedido)]);
+            break;
+          }
+        }
+      }
+      return res.status(200).json({ ok: true });
+    }
+
     if (acao === 'pausar' || acao === 'retomar') {
       const valor = acao === 'pausar' ? '1' : '0';
       await redisCommand(['SET', `n:${negocioId}:pausado`, valor]);
@@ -23,8 +61,7 @@ export default async function handler(req, res) {
       // Apaga o histórico de conversa
       await redisCommand(['DEL', `n:${negocioId}:historico:${subscriberId}`]);
 
-      // Limpa os dados coletados do cliente (ex: nome, WhatsApp, datas)
-      // mas preserva o perfil do Instagram (foto, username, nome)
+      // Limpa os dados coletados do cliente mas preserva o perfil do Instagram
       const clienteRaw = await redisCommand(['GET', `n:${negocioId}:cliente:${subscriberId}`]);
       if (clienteRaw?.result) {
         const cliente = JSON.parse(clienteRaw.result);

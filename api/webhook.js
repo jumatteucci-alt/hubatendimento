@@ -110,6 +110,13 @@ export default async function handler(req, res) {
           await criarLeadInicialSeNaoExistir(negocioId, subscriberId, negocio);
         }
 
+        // Verifica se esse subscriber está sob controle humano
+        const assumido = await redisCommand(['GET', ns(negocioId, `humano:${subscriberId}`)]);
+        if (assumido?.result === '1') {
+          console.log(`[ManyChat][${negocioId}] Conversa com ${subscriberId} assumida por humano — bot silenciado`);
+          return res.status(200).json({ reply: '' });
+        }
+
         const { replyText, pedidoFechado, leadCapturado, pedidoCancelado, tipoNegocio } =
           await processarMensagem(negocioId, subscriberId, userText, negocio);
 
