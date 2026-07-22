@@ -91,8 +91,9 @@
     if (p.incluiHotel !== false)    icones.push('<div class="icone"><span>🏨</span>Hotel</div>');
     if (p.incluiCafe)               icones.push('<div class="icone"><span>☕</span>Café da manhã</div>');
 
+    // Voo — só exibe se não for flexível e tiver dados
     let secaoVoo = '';
-    if (p.vooIdaData || p.vooVoltaData) {
+    if (!p.flexivel && (p.vooIdaData || p.vooVoltaData)) {
       secaoVoo = '<div class="secao"><h2>✈️ Voo</h2><div class="voo-row">'
         + '<div class="voo-col"><div class="voo-label">Ida</div>'
         + '<div class="voo-valor">' + esc(p.vooIdaData || '') + (p.vooIdaHora ? ' às ' + esc(p.vooIdaHora) : '') + '</div>'
@@ -145,7 +146,8 @@
       '<div class="hero"><div class="hero-fotos">' + heroFotos + '</div>'
       + '<div class="hero-overlay"></div>'
       + '<div class="hero-titulo"><h1>' + esc(p.destino || 'Pacote de Viagem') + '</h1>'
-      + (p.duracao || p.pessoas ? '<div class="subtitulo">'
+      + (p.duracao || p.pessoas || p.flexivel ? '<div class="subtitulo">'
+        + (p.flexivel ? '📅 Datas flexíveis · ' : '')
         + (p.duracao ? esc(p.duracao) : '')
         + (p.pessoas ? ' · ' + p.pessoas + ' pessoa' + (p.pessoas > 1 ? 's' : '') : '')
         + (p.acomodacao ? ' · ' + esc(p.acomodacao) : '')
