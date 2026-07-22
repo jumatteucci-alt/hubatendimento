@@ -92,6 +92,10 @@
       <div class="field"><label>Duração (ex: 5 dias / 4 noites)</label><input type="text" id="f-duracao" placeholder="5 dias / 4 noites"></div>
       <div class="field"><label>Mês/período (ex: Agosto de 2026)</label><input type="text" id="f-periodo" placeholder="Agosto de 2026"></div>
     </div>
+    <div class="grid-2">
+      <div class="field"><label>Número de pessoas</label><input type="number" id="f-pessoas" min="1" value="2" placeholder="2"></div>
+      <div class="field"><label>Tipo de acomodação (ex: quarto duplo)</label><input type="text" id="f-acomodacao" placeholder="Quarto duplo"></div>
+    </div>
 
     <div class="section-label">✈️ Voo — Ida</div>
     <div class="grid-2">
@@ -213,6 +217,8 @@
     document.getElementById('f-destino').value = pacote?.destino || '';
     document.getElementById('f-duracao').value = pacote?.duracao || '';
     document.getElementById('f-periodo').value = pacote?.periodo || '';
+    document.getElementById('f-pessoas').value = pacote?.pessoas || 2;
+    document.getElementById('f-acomodacao').value = pacote?.acomodacao || '';
     document.getElementById('f-voo-ida-data').value = pacote?.vooIdaData || '';
     document.getElementById('f-voo-ida-hora').value = pacote?.vooIdaHora || '';
     document.getElementById('f-voo-ida-cia').value = pacote?.vooIdaCia || '';
@@ -253,6 +259,8 @@
       destino: document.getElementById('f-destino').value.trim(),
       duracao: document.getElementById('f-duracao').value.trim(),
       periodo: document.getElementById('f-periodo').value.trim(),
+      pessoas: parseInt(document.getElementById('f-pessoas').value) || 2,
+      acomodacao: document.getElementById('f-acomodacao').value.trim(),
       vooIdaData: document.getElementById('f-voo-ida-data').value.trim(),
       vooIdaHora: document.getElementById('f-voo-ida-hora').value.trim(),
       vooIdaCia: document.getElementById('f-voo-ida-cia').value.trim(),

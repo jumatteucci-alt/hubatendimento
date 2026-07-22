@@ -137,7 +137,11 @@
       '<div class="hero"><div class="hero-fotos">' + heroFotos + '</div>'
       + '<div class="hero-overlay"></div>'
       + '<div class="hero-titulo"><h1>' + esc(p.destino || 'Pacote de Viagem') + '</h1>'
-      + (p.duracao ? '<div class="subtitulo">' + esc(p.duracao) + '</div>' : '')
+      + (p.duracao || p.pessoas ? '<div class="subtitulo">'
+        + (p.duracao ? esc(p.duracao) : '')
+        + (p.pessoas ? ' · ' + p.pessoas + ' pessoa' + (p.pessoas > 1 ? 's' : '') : '')
+        + (p.acomodacao ? ' · ' + esc(p.acomodacao) : '')
+        + '</div>' : '')
       + '</div></div>'
       + '<div class="wrap">'
       + '<div class="icones">' + icones.join('') + '</div>'
