@@ -11,19 +11,38 @@ export default async function handler(req, res) {
     const resultado = await redisCommand(['GET', 'pacote:' + pacoteId]);
     if (!resultado?.result) return res.status(404).json({ error: 'Pacote nao encontrado' });
     const pacote = JSON.parse(resultado.result);
-    const preco = Number(pacote.preco || 0);
+    const custo = Number(pacote.custo || 0);
+    const margem = Number(pacote.margem || 20);
     const taxaMP = Number(pacote.taxaMP || 15.99);
     const parcelas = Number(pacote.parcelas || 10);
-    const desconto = Number(pacote.descontoAvista || 0);
-    const precoParcelado = Math.round(preco / (1 - taxaMP / 100) * 100) / 100;
-    const precoVista = Math.round(preco * (1 - desconto / 100) * 100) / 100;
-    const valor = tipo === 'pix' ? precoVista : precoParcelado;
-    const titulo = (pacote.destino || 'Pacote') + (pacote.duracao ? ' - ' + pacote.duracao : '');
+    const desconto = Number(pacote.descontoAvista || 10);
+    // Preco base: o que o vendedor precisa receber (custo + margem)
+    const precoBase = custo * (1 + margem / 100);
+    // Parcelado: embutindo a taxa do MP pra receber o precoBase
+    const precoParcelado = Math.round(precoBase / (1 - taxaMP / 100) * 100) / 100;
+    // Pix: precoBase com desconto (taxa Pix do MP e minima, ~0.99%)
+    const precoPix = Math.round(precoBase * (1 - desconto / 100) * 100) / 100;
+    const valor = tipo === 'pix' ? precoPix : precoParcelado;
+    const titulo = (pacote.destino || 'Pacote de Viagem') + (pacote.duracao ? ' - ' + pacote.duracao : '');
     const preference = {
       items: [{ title: titulo, quantity: 1, currency_id: 'BRL', unit_price: valor }],
-      payment_methods: tipo === 'pix'
-        ? { excluded_payment_types: [{ id: 'credit_card' }, { id: 'debit_card' }, { id: 'ticket' }] }
-        : { installments: parcelas, default_installments: parcelas },
+      // Para parcelado: nao especificamos installments pra MP nao adicionar juros proprios
+      // O cliente escolhe parcelas no checkout com as opcoes da conta do vendedor
+      payment_methods: tipo === 'pix' ? {
+        excluded_payment_types: [
+          { id: 'credit_card' },
+          { id: 'debit_card' },
+          { id: 'ticket' },
+          { id: 'atm' }
+        ],
+        default_payment_method_id: 'pix'
+      } : {
+        excluded_payment_types: [
+          { id: 'ticket' },
+          { id: 'atm' }
+        ],
+        installments: parcelas
+      },
       back_urls: {
         success: 'https://hubatendimento.com.br/pacote?id=' + pacoteId + '&status=sucesso',
         failure: 'https://hubatendimento.com.br/pacote?id=' + pacoteId + '&status=falha',
@@ -38,15 +57,19 @@ export default async function handler(req, res) {
       body: JSON.stringify(preference),
     });
     const data = await response.json();
-    if (!response.ok) return res.status(500).json({ error: 'Erro MP', detalhe: data });
+    if (!response.ok) {
+      console.error('Erro MP:', JSON.stringify(data));
+      return res.status(500).json({ error: 'Erro ao gerar link no Mercado Pago', detalhe: data });
+    }
     const link = data.init_point;
     const pacoteAtualizado = { ...pacote };
     if (tipo === 'pix') pacoteAtualizado.linkCheckoutPix = link;
     else pacoteAtualizado.linkCheckout = link;
     await redisCommand(['SET', 'pacote:' + pacoteId, JSON.stringify(pacoteAtualizado)]);
-    return res.status(200).json({ ok: true, link, tipo });
+    return res.status(200).json({ ok: true, link, tipo, valor });
   } catch (err) {
-    return res.status(500).json({ error: String(err) });
+    console.error('Erro ao gerar link MP:', err);
+    return res.status(500).json({ error: 'Erro interno', msg: String(err) });
   }
 }
 async function validarSenha(negocioId, senha) {
