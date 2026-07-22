@@ -93,12 +93,12 @@
     if (p.vooIdaData || p.vooVoltaData) {
       secaoVoo = '<div class="secao"><h2>✈️ Voo</h2><div class="voo-row">'
         + '<div class="voo-col"><div class="voo-label">Ida</div>'
-        + '<div class="voo-valor">' + esc(p.vooIdaData || '') + '</div>'
-        + '<div class="voo-cia">' + esc(p.vooIdaHora || '') + (p.vooIdaCia ? ' · ' + esc(p.vooIdaCia) : '') + '</div></div>'
+        + '<div class="voo-valor">' + esc(p.vooIdaData || '') + (p.vooIdaHora ? ' às ' + esc(p.vooIdaHora) : '') + '</div>'
+        + '<div class="voo-cia">' + (p.vooIdaCia ? esc(p.vooIdaCia) : '') + (p.vooIdaAeroporto ? ' · ' + esc(p.vooIdaAeroporto) : '') + '</div></div>'
         + '<div class="voo-seta">✈</div>'
         + '<div class="voo-col" style="text-align:right;"><div class="voo-label">Volta</div>'
-        + '<div class="voo-valor">' + esc(p.vooVoltaData || '') + '</div>'
-        + '<div class="voo-cia">' + esc(p.vooVoltaHora || '') + (p.vooVoltaCia ? ' · ' + esc(p.vooVoltaCia) : '') + '</div></div>'
+        + '<div class="voo-valor">' + esc(p.vooVoltaData || '') + (p.vooVoltaHora ? ' às ' + esc(p.vooVoltaHora) : '') + '</div>'
+        + '<div class="voo-cia">' + (p.vooVoltaCia ? esc(p.vooVoltaCia) : '') + (p.vooVoltaAeroporto ? ' · ' + esc(p.vooVoltaAeroporto) : '') + '</div></div>'
         + '</div></div>';
     }
 

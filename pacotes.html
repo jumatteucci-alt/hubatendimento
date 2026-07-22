@@ -94,17 +94,23 @@
     </div>
 
     <div class="section-label">✈️ Voo — Ida</div>
-    <div class="grid-3">
+    <div class="grid-2">
       <div class="field"><label>Data de ida</label><input type="text" id="f-voo-ida-data" placeholder="15/08/2026"></div>
       <div class="field"><label>Horário de ida</label><input type="text" id="f-voo-ida-hora" placeholder="06:30"></div>
+    </div>
+    <div class="grid-2">
       <div class="field"><label>Companhia</label><input type="text" id="f-voo-ida-cia" placeholder="LATAM"></div>
+      <div class="field"><label>Aeroporto de saída (ex: GRU — Guarulhos)</label><input type="text" id="f-voo-ida-aeroporto" placeholder="GRU — Guarulhos"></div>
     </div>
 
     <div class="section-label">✈️ Voo — Volta</div>
-    <div class="grid-3">
+    <div class="grid-2">
       <div class="field"><label>Data de volta</label><input type="text" id="f-voo-volta-data" placeholder="19/08/2026"></div>
       <div class="field"><label>Horário de volta</label><input type="text" id="f-voo-volta-hora" placeholder="22:10"></div>
+    </div>
+    <div class="grid-2">
       <div class="field"><label>Companhia</label><input type="text" id="f-voo-volta-cia" placeholder="Aerolíneas Argentinas"></div>
+      <div class="field"><label>Aeroporto de chegada (ex: GRU — Guarulhos)</label><input type="text" id="f-voo-volta-aeroporto" placeholder="GRU — Guarulhos"></div>
     </div>
 
     <div class="section-label">🏨 Hotel</div>
@@ -210,9 +216,11 @@
     document.getElementById('f-voo-ida-data').value = pacote?.vooIdaData || '';
     document.getElementById('f-voo-ida-hora').value = pacote?.vooIdaHora || '';
     document.getElementById('f-voo-ida-cia').value = pacote?.vooIdaCia || '';
+    document.getElementById('f-voo-ida-aeroporto').value = pacote?.vooIdaAeroporto || '';
     document.getElementById('f-voo-volta-data').value = pacote?.vooVoltaData || '';
     document.getElementById('f-voo-volta-hora').value = pacote?.vooVoltaHora || '';
     document.getElementById('f-voo-volta-cia').value = pacote?.vooVoltaCia || '';
+    document.getElementById('f-voo-volta-aeroporto').value = pacote?.vooVoltaAeroporto || '';
     document.getElementById('f-hotel-nome').value = pacote?.hotelNome || '';
     document.getElementById('f-hotel-desc').value = pacote?.hotelDescricao || '';
     document.getElementById('f-foto1').value = pacote?.foto1 || '';
@@ -248,9 +256,11 @@
       vooIdaData: document.getElementById('f-voo-ida-data').value.trim(),
       vooIdaHora: document.getElementById('f-voo-ida-hora').value.trim(),
       vooIdaCia: document.getElementById('f-voo-ida-cia').value.trim(),
+      vooIdaAeroporto: document.getElementById('f-voo-ida-aeroporto').value.trim(),
       vooVoltaData: document.getElementById('f-voo-volta-data').value.trim(),
       vooVoltaHora: document.getElementById('f-voo-volta-hora').value.trim(),
       vooVoltaCia: document.getElementById('f-voo-volta-cia').value.trim(),
+      vooVoltaAeroporto: document.getElementById('f-voo-volta-aeroporto').value.trim(),
       hotelNome: document.getElementById('f-hotel-nome').value.trim(),
       hotelDescricao: document.getElementById('f-hotel-desc').value.trim(),
       foto1: document.getElementById('f-foto1').value.trim(),
