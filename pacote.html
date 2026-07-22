@@ -114,33 +114,28 @@
     }
 
     let secaoPreco = '';
-    const preco = Number(p.preco || 0);
-    if (preco > 0) {
-      const parcelas = Number(p.parcelas || 10);
-      const desconto = Number(p.descontoAvista || 0);
-      const valorParcela = parcelas > 0 ? fmt(preco / parcelas) : null;
-      const valorVista = desconto > 0 ? fmt(preco * (1 - desconto / 100)) : null;
+    const custo = Number(p.custo || 0);
+    const margem = Number(p.margem || 0);
+    const taxaMP = Number(p.taxaMP || 15.99);
+    const parcelas = Number(p.parcelas || 10);
+    const desconto = Number(p.descontoAvista || 0);
 
-      const btnParcelado = p.linkCheckout
-        ? '<a href="' + esc(p.linkCheckout) + '" class="cta-btn" target="_blank" rel="noopener">Pagar parcelado ✈️</a>'
-        : '';
+    // Usa custo+margem como base (igual ao mp-link.js)
+    const precoBase = custo > 0 ? custo * (1 + margem / 100) : Number(p.preco || 0);
+    const precoParcelado = custo > 0 ? precoBase / (1 - taxaMP / 100) : Number(p.preco || 0);
+    const precoPix = precoBase * (1 - desconto / 100);
+    const valorParcela = parcelas > 0 ? precoParcelado / parcelas : 0;
 
-      const btnPix = p.linkCheckoutPix && valorVista
-        ? '<a href="' + esc(p.linkCheckoutPix) + '" class="cta-btn cta-pix" target="_blank" rel="noopener">💚 Pagar no Pix — R$ ' + valorVista + '</a>'
-        : (p.linkCheckoutPix
-          ? '<a href="' + esc(p.linkCheckoutPix) + '" class="cta-btn cta-pix" target="_blank" rel="noopener">💚 Pagar no Pix</a>'
-          : '');
+    if (precoParcelado > 0) {
 
       secaoPreco = '<div class="secao"><div class="preco-wrap"><div class="preco-label">A partir de</div>'
-        + (valorParcela
-          ? '<div class="preco-principal">' + parcelas + 'x de R$ ' + valorParcela + '</div>'
-            + '<div class="preco-parcelado">Valor total: R$ ' + fmt(preco) + ' · sem juros</div>'
-          : '<div class="preco-principal">R$ ' + fmt(preco) + '</div>')
-        + (valorVista && desconto ? '<div class="preco-vista">ou R$ ' + valorVista + ' no Pix (' + desconto + '% de desconto)</div>' : '')
+        + '<div class="preco-principal">' + parcelas + 'x de R$ ' + fmt(valorParcela) + '</div>'
+        + '<div class="preco-parcelado">Valor total: R$ ' + fmt(precoParcelado) + ' · sem juros</div>'
+        + (desconto > 0 ? '<div class="preco-vista">ou R$ ' + fmt(precoPix) + ' no Pix (' + desconto + '% de desconto)</div>' : '')
         + '</div>'
         + '<div class="cta-wrap">'
-        + btnParcelado
-        + btnPix
+        + (p.linkCheckout ? '<a href="' + esc(p.linkCheckout) + '" class="cta-btn" target="_blank" rel="noopener">Pagar parcelado ✈️</a>' : '')
+        + (p.linkCheckoutPix && desconto > 0 ? '<a href="' + esc(p.linkCheckoutPix) + '" class="cta-btn cta-pix" target="_blank" rel="noopener">💚 Pagar no Pix — R$ ' + fmt(precoPix) + '</a>' : (p.linkCheckoutPix ? '<a href="' + esc(p.linkCheckoutPix) + '" class="cta-btn cta-pix" target="_blank" rel="noopener">💚 Pagar no Pix</a>' : ''))
         + '</div>'
         + '<div class="cta-sub">Pagamento seguro via Mercado Pago</div>'
         + '</div>';
