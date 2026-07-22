@@ -131,14 +131,67 @@
       <label class="checkbox-row"><input type="checkbox" id="f-cafe"> Café da manhã</label>
     </div>
 
-    <div class="section-label">💰 Preço e checkout</div>
+    <div class="section-label">💰 Calculadora de preço</div>
     <div class="grid-3">
-      <div class="field"><label>Preço total (R$)</label><input type="number" step="0.01" id="f-preco" placeholder="2870"></div>
-      <div class="field"><label>Número de parcelas</label><input type="number" id="f-parcelas" value="10" min="1" max="24"></div>
-      <div class="field"><label>Desconto à vista (%)</label><input type="number" id="f-desconto" value="15" min="0" max="50"></div>
+      <div class="field">
+        <label>Custo do pacote (R$) — o que você paga ao fornecedor</label>
+        <input type="number" step="0.01" id="f-custo" placeholder="2451.35" oninput="calcular()">
+      </div>
+      <div class="field">
+        <label>Sua margem (%)</label>
+        <input type="number" id="f-margem" value="20" min="0" max="100" oninput="calcular()">
+      </div>
+      <div class="field">
+        <label>Taxa Mercado Pago parcelado (%)</label>
+        <input type="number" step="0.01" id="f-taxa-mp" value="15.99" min="0" max="30" oninput="calcular()">
+      </div>
     </div>
-    <div class="field"><label>Link de checkout — Parcelado (Mercado Pago)</label><input type="text" id="f-checkout" placeholder="https://mpago.la/..."></div>
-    <div class="field"><label>Link de checkout — Pix (Mercado Pago)</label><input type="text" id="f-checkout-pix" placeholder="https://mpago.la/..."></div>
+    <div class="grid-3">
+      <div class="field">
+        <label>Número de parcelas</label>
+        <input type="number" id="f-parcelas" value="10" min="1" max="24" oninput="calcular()">
+      </div>
+      <div class="field">
+        <label>Desconto à vista Pix (%)</label>
+        <input type="number" id="f-desconto" value="10" min="0" max="50" oninput="calcular()">
+      </div>
+    </div>
+
+    <!-- Resultado da calculadora -->
+    <div id="calc-resultado" style="display:none; background:var(--ink); border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:16px;">
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-bottom:14px;">
+        <div>
+          <div style="font-size:0.72rem;color:var(--paper-dim);margin-bottom:4px;">VOCÊ RECEBE (LÍQUIDO)</div>
+          <div id="calc-liquido" style="font-size:1.2rem;font-weight:700;color:var(--green);"></div>
+        </div>
+        <div>
+          <div style="font-size:0.72rem;color:var(--paper-dim);margin-bottom:4px;">CLIENTE PAGA (PARCELADO)</div>
+          <div id="calc-parcelado" style="font-size:1.2rem;font-weight:700;color:var(--gold);"></div>
+          <div id="calc-parcela" style="font-size:0.8rem;color:var(--paper-dim);"></div>
+        </div>
+        <div>
+          <div style="font-size:0.72rem;color:var(--paper-dim);margin-bottom:4px;">CLIENTE PAGA (PIX)</div>
+          <div id="calc-pix" style="font-size:1.2rem;font-weight:700;color:var(--violet);"></div>
+        </div>
+      </div>
+      <div style="font-size:0.78rem;color:var(--paper-dim);" id="calc-detalhe"></div>
+    </div>
+
+    <!-- Campo oculto que armazena o preço calculado -->
+    <input type="hidden" id="f-preco">
+
+    <div class="section-label">🔗 Links de checkout</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+      <div>
+        <div class="field"><label>Link parcelado</label><input type="text" id="f-checkout" placeholder="Gerado automaticamente ou cole aqui"></div>
+        <button class="btn-secondary" id="btn-gerar-parcelado" type="button" style="width:100%;margin-top:4px;" disabled>⚡ Gerar link parcelado</button>
+      </div>
+      <div>
+        <div class="field"><label>Link Pix</label><input type="text" id="f-checkout-pix" placeholder="Gerado automaticamente ou cole aqui"></div>
+        <button class="btn-secondary" id="btn-gerar-pix" type="button" style="width:100%;margin-top:4px;" disabled>⚡ Gerar link Pix</button>
+      </div>
+    </div>
+    <div id="link-status" style="font-size:0.82rem;color:var(--green);min-height:18px;margin-bottom:10px;"></div>
 
     <div class="form-acoes">
       <button class="btn-primary" id="btn-salvar">Salvar pacote</button>
@@ -169,6 +222,46 @@
   document.getElementById('btn-novo').addEventListener('click', () => abrirForm(null));
   document.getElementById('btn-cancelar').addEventListener('click', fecharForm);
   document.getElementById('btn-salvar').addEventListener('click', salvar);
+  document.getElementById('btn-gerar-parcelado').addEventListener('click', () => gerarLink('parcelado'));
+  document.getElementById('btn-gerar-pix').addEventListener('click', () => gerarLink('pix'));
+
+  function calcular() {
+    const custo = parseFloat(document.getElementById('f-custo').value) || 0;
+    const margem = parseFloat(document.getElementById('f-margem').value) || 0;
+    const taxaMP = parseFloat(document.getElementById('f-taxa-mp').value) || 15.99;
+    const parcelas = parseInt(document.getElementById('f-parcelas').value) || 10;
+    const desconto = parseFloat(document.getElementById('f-desconto').value) || 0;
+
+    const resultado = document.getElementById('calc-resultado');
+    if (!custo) { resultado.style.display = 'none'; return; }
+
+    // Preço base que o vendedor quer receber (custo + margem)
+    const precoBase = custo * (1 + margem / 100);
+    // Preço parcelado: embutindo taxa do MP pra receber o precoBase
+    const precoParcelado = precoBase / (1 - taxaMP / 100);
+    // Preço Pix: precoBase com desconto
+    const precoPix = precoBase * (1 - desconto / 100);
+    const valorParcela = precoParcelado / parcelas;
+
+    document.getElementById('calc-liquido').textContent = 'R$ ' + fmt(precoBase);
+    document.getElementById('calc-parcelado').textContent = 'R$ ' + fmt(precoParcelado);
+    document.getElementById('calc-parcela').textContent = parcelas + 'x de R$ ' + fmt(valorParcela);
+    document.getElementById('calc-pix').textContent = 'R$ ' + fmt(precoPix);
+    document.getElementById('calc-detalhe').textContent =
+      'Custo R$ ' + fmt(custo) + ' + margem ' + margem + '% = R$ ' + fmt(precoBase) + ' liquido · '
+      + 'Taxa MP ' + taxaMP + '% embutida no parcelado · '
+      + 'Desconto Pix ' + desconto + '%';
+
+    // Salva o preço parcelado no campo oculto (usado ao salvar)
+    document.getElementById('f-preco').value = precoParcelado.toFixed(2);
+
+    resultado.style.display = 'block';
+
+    // Habilita botões de gerar link se o pacote já tiver ID
+    const temId = !!document.getElementById('f-id').value;
+    document.getElementById('btn-gerar-parcelado').disabled = !temId;
+    document.getElementById('btn-gerar-pix').disabled = !temId;
+  }
 
   async function tentarLogin(senhaForcada) {
     const senha = senhaForcada ?? document.getElementById('senha-input').value;
@@ -236,13 +329,20 @@
     document.getElementById('f-passagem').checked = pacote?.incluiPassagem !== false;
     document.getElementById('f-hotel').checked = pacote?.incluiHotel !== false;
     document.getElementById('f-cafe').checked = !!pacote?.incluiCafe;
-    document.getElementById('f-preco').value = pacote?.preco || '';
+    document.getElementById('f-custo').value = pacote?.custo || '';
+    document.getElementById('f-margem').value = pacote?.margem ?? 20;
+    document.getElementById('f-taxa-mp').value = pacote?.taxaMP ?? 15.99;
     document.getElementById('f-parcelas').value = pacote?.parcelas || 10;
-    document.getElementById('f-desconto').value = pacote?.descontoAvista || 15;
+    document.getElementById('f-desconto').value = pacote?.descontoAvista ?? 10;
+    document.getElementById('f-preco').value = pacote?.preco || '';
     document.getElementById('f-checkout').value = pacote?.linkCheckout || '';
     document.getElementById('f-checkout-pix').value = pacote?.linkCheckoutPix || '';
+    document.getElementById('link-status').textContent = '';
     document.getElementById('save-status').textContent = '';
     document.getElementById('save-error').textContent = '';
+    document.getElementById('btn-gerar-parcelado').disabled = !isEdicao;
+    document.getElementById('btn-gerar-pix').disabled = !isEdicao;
+    calcular();
     document.getElementById('form-pacote').style.display = 'block';
     document.getElementById('form-pacote').scrollIntoView({ behavior: 'smooth' });
   }
@@ -279,9 +379,12 @@
       incluiPassagem: document.getElementById('f-passagem').checked,
       incluiHotel: document.getElementById('f-hotel').checked,
       incluiCafe: document.getElementById('f-cafe').checked,
+      custo: parseFloat(document.getElementById('f-custo').value) || 0,
+      margem: parseFloat(document.getElementById('f-margem').value) || 20,
+      taxaMP: parseFloat(document.getElementById('f-taxa-mp').value) || 15.99,
       preco: parseFloat(document.getElementById('f-preco').value) || 0,
       parcelas: parseInt(document.getElementById('f-parcelas').value) || 10,
-      descontoAvista: parseInt(document.getElementById('f-desconto').value) || 0,
+      descontoAvista: parseFloat(document.getElementById('f-desconto').value) || 0,
       linkCheckout: document.getElementById('f-checkout').value.trim(),
       linkCheckoutPix: document.getElementById('f-checkout-pix').value.trim(),
     };
@@ -309,6 +412,9 @@
     const data = await resp.json();
     document.getElementById('save-status').textContent = 'Salvo! Link: hubatendimento.com.br/pacote?id=' + data.id;
     document.getElementById('f-id').value = data.id;
+    // Habilita os botões de gerar link agora que o pacote tem ID
+    document.getElementById('btn-gerar-parcelado').disabled = false;
+    document.getElementById('btn-gerar-pix').disabled = false;
 
     // Atualiza a lista
     const listResp = await fetch('/api/pacote?negocio_id=' + negocioId + '&senha=' + encodeURIComponent(senhaAtual));
