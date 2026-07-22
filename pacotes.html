@@ -55,9 +55,22 @@
   #save-status{ font-size:0.82rem; color:var(--green); min-height:18px; margin-top:8px; }
   #save-error{ font-size:0.82rem; color:var(--coral); min-height:18px; }
 
-  .empty-state{ text-align:center; color:var(--paper-dim); padding:60px 20px; font-size:0.95rem; }
+  .chip-campo{ display:flex; align-items:center; gap:8px; background:var(--ink); border:1px solid var(--line); border-radius:999px; padding:6px 8px 6px 14px; font-size:0.82rem; }
+  .chip-campo button{ background:transparent; border:none; color:var(--coral); padding:2px 6px; font-size:0.82rem; cursor:pointer; }
 
   @media(max-width:560px){ .grid-2,.grid-3{ grid-template-columns:1fr; } .pacote-card{ flex-direction:column; align-items:flex-start; } }
+
+  /* HAMBURGER MOBILE */
+  .nav-hamburger{ display:none; background:transparent; border:none; color:var(--paper); font-size:1.4rem; padding:8px; cursor:pointer; margin-left:auto; }
+  .nav-mobile{ display:none; flex-direction:column; background:var(--ink-2); border:1px solid var(--line); border-radius:12px; padding:8px; margin-bottom:16px; gap:2px; }
+  .nav-mobile a{ color:var(--paper-dim); text-decoration:none; font-size:0.92rem; padding:10px 14px; border-radius:8px; }
+  .nav-mobile a:hover, .nav-mobile a.ativo{ background:var(--ink); color:var(--paper); }
+  .nav-mobile a.ativo{ color:var(--coral); }
+  .nav-mobile.aberto{ display:flex; }
+  @media(max-width:680px){
+    .topnav a:not(.ativo){ display:none; }
+    .nav-hamburger{ display:block; }
+  }
 </style>
 </head>
 <body>
@@ -130,6 +143,14 @@
       <label class="checkbox-row"><input type="checkbox" id="f-hotel" checked> Hotel</label>
       <label class="checkbox-row"><input type="checkbox" id="f-cafe"> Café da manhã</label>
     </div>
+
+    <div class="section-label">📋 Dados a coletar do lead</div>
+    <p style="font-size:0.82rem;color:var(--paper-dim);margin-bottom:10px;">Defina exatamente quais informações o bot deve pedir antes de mandar o link de checkout. Na ordem que quiser.</p>
+    <div style="display:flex;gap:10px;margin-bottom:14px;">
+      <input type="text" id="campo-coleta-input" placeholder="Ex: Nome completo" style="flex:1;">
+      <button class="btn-secondary" id="add-campo-coleta-btn" type="button" style="white-space:nowrap;">+ Adicionar</button>
+    </div>
+    <div id="campos-coleta-lista" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;"></div>
 
     <div class="section-label">💰 Calculadora de preço</div>
     <div class="grid-3">
@@ -224,6 +245,24 @@
   document.getElementById('btn-salvar').addEventListener('click', salvar);
   document.getElementById('btn-gerar-parcelado').addEventListener('click', () => gerarLink('parcelado'));
   document.getElementById('btn-gerar-pix').addEventListener('click', () => gerarLink('pix'));
+  document.getElementById('add-campo-coleta-btn').addEventListener('click', () => {
+    const input = document.getElementById('campo-coleta-input');
+    if (input.value.trim()) { adicionarChipCampo(input.value.trim()); input.value = ''; }
+  });
+  document.getElementById('campo-coleta-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('add-campo-coleta-btn').click(); }
+  });
+
+  function adicionarChipCampo(nome) {
+    const lista = document.getElementById('campos-coleta-lista');
+    if ([...lista.children].some(c => c.dataset.campo === nome)) return;
+    const chip = document.createElement('div');
+    chip.className = 'chip-campo';
+    chip.dataset.campo = nome;
+    chip.innerHTML = esc(nome) + ' <button type="button">✕</button>';
+    chip.querySelector('button').addEventListener('click', () => chip.remove());
+    lista.appendChild(chip);
+  }
 
   async function gerarLink(tipo) {
     const pacoteId = document.getElementById('f-id').value;
@@ -374,6 +413,8 @@
     document.getElementById('link-status').textContent = '';
     document.getElementById('save-status').textContent = '';
     document.getElementById('save-error').textContent = '';
+    document.getElementById('campos-coleta-lista').innerHTML = '';
+    (pacote?.camposColeta || []).forEach(adicionarChipCampo);
     document.getElementById('btn-gerar-parcelado').disabled = !isEdicao;
     document.getElementById('btn-gerar-pix').disabled = !isEdicao;
     calcular();
@@ -423,6 +464,7 @@
       descontoAvista: parseFloat(document.getElementById('f-desconto').value) || 0,
       linkCheckout: document.getElementById('f-checkout').value.trim(),
       linkCheckoutPix: document.getElementById('f-checkout-pix').value.trim(),
+      camposColeta: Array.from(document.querySelectorAll('#campos-coleta-lista .chip-campo')).map(c => c.dataset.campo),
     };
 
     if (!pacote.destino) {
@@ -477,6 +519,14 @@
   const senhaSalva = localStorage.getItem(CHAVE + ':' + negocioId);
   if (senhaSalva) { tentarLogin(senhaSalva); }
   else { document.getElementById('loading-screen').style.display = 'none'; document.getElementById('login-screen').classList.add('visivel'); }
+
 </script>
+  // Hamburger menu
+  const navToggle = document.getElementById('nav-toggle');
+  if (navToggle) {
+    navToggle.addEventListener('click', () => {
+      document.getElementById('nav-mobile').classList.toggle('aberto');
+    });
+  }
 </body>
 </html>

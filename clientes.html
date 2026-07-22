@@ -86,6 +86,18 @@
     .cliente{ grid-template-columns:1fr; }
     .cliente-acoes{ flex-direction:row; align-items:flex-start; }
   }
+
+  /* HAMBURGER MOBILE */
+  .nav-hamburger{ display:none; background:transparent; border:none; color:var(--paper); font-size:1.4rem; padding:8px; cursor:pointer; margin-left:auto; }
+  .nav-mobile{ display:none; flex-direction:column; background:var(--ink-2); border:1px solid var(--line); border-radius:12px; padding:8px; margin-bottom:16px; gap:2px; }
+  .nav-mobile a{ color:var(--paper-dim); text-decoration:none; font-size:0.92rem; padding:10px 14px; border-radius:8px; }
+  .nav-mobile a:hover, .nav-mobile a.ativo{ background:var(--ink); color:var(--paper); }
+  .nav-mobile a.ativo{ color:var(--coral); }
+  .nav-mobile.aberto{ display:flex; }
+  @media(max-width:680px){
+    .topnav a:not(.ativo){ display:none; }
+    .nav-hamburger{ display:block; }
+  }
 </style>
 </head>
 <body>
@@ -284,6 +296,14 @@
   const senhaSalva = localStorage.getItem(CHAVE_STORAGE + ':' + negocioId);
   if (senhaSalva) { tentarLogin(senhaSalva); }
   else { document.getElementById('loading-screen').style.display = 'none'; document.getElementById('login-screen').classList.add('visivel'); }
+
 </script>
+  // Hamburger menu
+  const navToggle = document.getElementById('nav-toggle');
+  if (navToggle) {
+    navToggle.addEventListener('click', () => {
+      document.getElementById('nav-mobile').classList.toggle('aberto');
+    });
+  }
 </body>
 </html>

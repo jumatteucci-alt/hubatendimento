@@ -80,6 +80,18 @@
   .banner-titulo{ font-weight:600; color:var(--paper); margin-bottom:4px; display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
   .banner button{ border:1px solid var(--coral); background:transparent; color:var(--coral); font-size:0.78rem; padding:5px 12px; border-radius:7px; cursor:pointer; white-space:nowrap; }
   .btn-acao.reset{ border-color:var(--paper-dim); color:var(--paper-dim); }
+
+  /* HAMBURGER MOBILE */
+  .nav-hamburger{ display:none; background:transparent; border:none; color:var(--paper); font-size:1.4rem; padding:8px; cursor:pointer; margin-left:auto; }
+  .nav-mobile{ display:none; flex-direction:column; background:var(--ink-2); border:1px solid var(--line); border-radius:12px; padding:8px; margin-bottom:16px; gap:2px; }
+  .nav-mobile a{ color:var(--paper-dim); text-decoration:none; font-size:0.92rem; padding:10px 14px; border-radius:8px; }
+  .nav-mobile a:hover, .nav-mobile a.ativo{ background:var(--ink); color:var(--paper); }
+  .nav-mobile a.ativo{ color:var(--coral); }
+  .nav-mobile.aberto{ display:flex; }
+  @media(max-width:680px){
+    .topnav a:not(.ativo){ display:none; }
+    .nav-hamburger{ display:block; }
+  }
 </style>
 </head>
 <body>
@@ -332,7 +344,15 @@
     div.textContent = str;
     return div.innerHTML;
   }
+
 </script>
+  // Hamburger menu
+  const navToggle = document.getElementById('nav-toggle');
+  if (navToggle) {
+    navToggle.addEventListener('click', () => {
+      document.getElementById('nav-mobile').classList.toggle('aberto');
+    });
+  }
 
 </body>
 </html>

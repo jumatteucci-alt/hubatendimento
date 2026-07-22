@@ -105,8 +105,8 @@ export default async function handler(req, res) {
           return res.status(200).json({ reply: msgFechado });
         }
 
-        // Se for produto digital e for a primeira mensagem, cria lead inicial com nome do Instagram
-        if (negocio.tipo === 'produto_digital') {
+        // Se for produto digital ou agência de viagens e for a primeira mensagem, cria lead inicial com nome do Instagram
+        if (negocio.tipo === 'produto_digital' || negocio.tipo === 'agencia_viagens') {
           await criarLeadInicialSeNaoExistir(negocioId, subscriberId, negocio);
         }
 
@@ -288,7 +288,35 @@ REGRAS DA VENDA:
 ###CANCELAR###
 - Se o cliente disser "cancelar" mas ainda não tinha confirmado nenhuma compra na conversa, apenas confirme que não há nada pra cancelar, sem incluir nenhum bloco`;
 
-// ─── Negócio padrão (fallback enquanto não há cadastro) ─────────────────────
+const PROMPT_AGENCIA_VIAGENS = `Você é o atendente virtual de uma agência de viagens, via Instagram/WhatsApp.
+
+${PROMPT_COMUM}
+
+REGRAS DA CONVERSA:
+- Apresente o pacote disponível de forma natural e atrativa logo na primeira mensagem, com destino, período e o que está incluído
+- Não invente informações, preços ou datas que não estejam no pacote abaixo
+- Seu objetivo principal é COLETAR OS DADOS DO LEAD, não fechar a venda diretamente — a venda é fechada pelo especialista
+- Colete os campos listados em "DADOS A COLETAR" um por um, de forma natural, sem parecer um formulário
+- Assim que coletar QUALQUER dado, ADICIONE no final da resposta este bloco e continue coletando:
+###LEAD###
+{"itens":["nome do pacote"],"total":0,"dados":{"Nome do campo":"valor informado"}}
+###FIM###
+- Sempre que coletar mais um dado, inclua o ###LEAD### novamente com TODOS os dados conhecidos até agora
+- Quando tiver coletado TODOS os dados de "DADOS A COLETAR", verifique a intenção do cliente:
+
+CENÁRIO 1 — O cliente quer o pacote do anúncio (período informado no pacote):
+- Diga que o pacote está disponível e mande o link de checkout
+- Explique que o pagamento é feito por ali e que o especialista entra em contato após a confirmação
+- NÃO diga que a compra foi concluída — só o cliente sabe se finalizou o pagamento
+
+CENÁRIO 2 — O cliente quer outra data ou destino diferente:
+- Diga que o especialista vai preparar um pacote personalizado para as datas/destino dele
+- Confirme que os dados foram recebidos e que entrarão em contato em breve
+- Emita o bloco ###LEAD### final com todos os dados e encerre a conversa de forma simpática
+
+- Se o cliente pedir explicitamente pra falar com um humano, use ###CHAMAR_HUMANO###`;
+
+
 
 const NEGOCIO_PADRAO = {
   tipo: 'delivery',
@@ -313,6 +341,8 @@ function montarSystemPrompt(negocio, cliente, horariosOcupados, primeiraMensagem
     ? PROMPT_AGENDAMENTO
     : tipo === 'produto_digital'
     ? PROMPT_PRODUTO_DIGITAL
+    : tipo === 'agencia_viagens'
+    ? PROMPT_AGENCIA_VIAGENS
     : PROMPT_DELIVERY;
 
   const listaTexto = (negocio.itens || [])
@@ -323,12 +353,52 @@ function montarSystemPrompt(negocio, cliente, horariosOcupados, primeiraMensagem
     .join('\n');
 
   let blocoCliente = '';
-  if (cliente && tipo !== 'produto_digital') {
+  if (cliente && tipo !== 'produto_digital' && tipo !== 'agencia_viagens') {
     const labelDado2 = tipo === 'agendamento' ? 'Data/horário mais comum' : 'Endereço';
     blocoCliente = `\n\nDADOS JÁ CONHECIDOS DESTE CLIENTE:
 - Nome: ${cliente.nome || 'desconhecido'}
 - ${labelDado2}: ${cliente.endereco || 'desconhecido'}
 - Forma de pagamento mais usada: ${cliente.pagamento || 'desconhecida'}`;
+  }
+
+  // Prompt específico de agência de viagens
+  if (tipo === 'agencia_viagens') {
+    const pacote = negocio._pacoteAtivo || {};
+    const camposTexto = (pacote.camposColeta && pacote.camposColeta.length)
+      ? pacote.camposColeta.map(c => `- ${c}`).join('\n')
+      : '- Nome\n- WhatsApp\n- Número de pessoas\n- Período desejado';
+
+    let blocoClienteDados = '';
+    if (cliente && cliente.dados && Object.keys(cliente.dados).length) {
+      const linhas = Object.entries(cliente.dados).map(([k, v]) => `- ${k}: ${v}`).join('\n');
+      blocoClienteDados = `\n\nDADOS JÁ CONHECIDOS DESTE CLIENTE (não pergunte de novo):\n${linhas}`;
+    }
+
+    const instrucaoPrimeira = primeiraMensagem
+      ? `\n\nPRIMEIRA MENSAGEM: apresente o pacote de forma atrativa e curta, com destino, período e principais inclusões, e convide o cliente a continuar a conversa.`
+      : '';
+
+    const precoParcelado = pacote.preco ? Number(pacote.preco) : 0;
+    const parcelas = pacote.parcelas || 10;
+    const valorParcela = precoParcelado > 0 && parcelas > 0 ? (precoParcelado / parcelas).toFixed(2).replace('.', ',') : null;
+
+    return `${promptBase}
+
+PACOTE DISPONÍVEL:
+Destino: ${pacote.destino || '(não definido)'}
+Período: ${pacote.periodo || '(não definido)'}
+Duração: ${pacote.duracao || ''}
+Para: ${pacote.pessoas || 2} pessoa(s) — ${pacote.acomodacao || 'quarto duplo'}
+Inclui: ${[pacote.incluiPassagem !== false ? 'Passagem aérea' : null, pacote.incluiHotel !== false ? 'Hotel' : null, pacote.incluiCafe ? 'Café da manhã' : null].filter(Boolean).join(', ')}
+Voo ida: ${[pacote.vooIdaData, pacote.vooIdaHora, pacote.vooIdaCia, pacote.vooIdaAeroporto].filter(Boolean).join(' · ')}
+Voo volta: ${[pacote.vooVoltaData, pacote.vooVoltaHora, pacote.vooVoltaCia, pacote.vooVoltaAeroporto].filter(Boolean).join(' · ')}
+Hotel: ${pacote.hotelNome || ''} ${pacote.hotelDescricao ? '— ' + pacote.hotelDescricao : ''}
+Preço: ${valorParcela ? `${parcelas}x de R$ ${valorParcela} (ou R$ ${Number(pacote.preco).toFixed(2).replace('.', ',')} no Pix com desconto)` : '(consultar)'}
+Link de checkout parcelado: ${pacote.linkCheckout || '(não configurado)'}
+Link Pix: ${pacote.linkCheckoutPix || '(não configurado)'}
+
+DADOS A COLETAR (peça um por um, de forma natural):
+${camposTexto}${blocoClienteDados}${instrucaoPrimeira}`;
   }
 
   if (tipo === 'produto_digital') {
@@ -564,11 +634,25 @@ async function salvarHistorico(negocioId, subscriberId, historico) {
 
 async function buscarNegocio(negocioId) {
   try {
+    let negocio;
     const resultado = await redisCommand(['GET', ns(negocioId, 'config')]);
-    if (resultado?.result) return JSON.parse(resultado.result);
-    // Retrocompatibilidade: chave antiga
-    const legado = await redisCommand(['GET', 'negocio:config']);
-    return legado?.result ? JSON.parse(legado.result) : NEGOCIO_PADRAO;
+    if (resultado?.result) negocio = JSON.parse(resultado.result);
+    else {
+      const legado = await redisCommand(['GET', 'negocio:config']);
+      negocio = legado?.result ? JSON.parse(legado.result) : NEGOCIO_PADRAO;
+    }
+
+    // Se for agência de viagens, carrega o pacote ativo
+    if (negocio.tipo === 'agencia_viagens' && negocio.pacoteAtivoId) {
+      try {
+        const pacoteRes = await redisCommand(['GET', `pacote:${negocio.pacoteAtivoId}`]);
+        if (pacoteRes?.result) negocio._pacoteAtivo = JSON.parse(pacoteRes.result);
+      } catch (err) {
+        console.error('Erro ao carregar pacote ativo:', err);
+      }
+    }
+
+    return negocio;
   } catch (err) {
     console.error('Erro ao buscar negócio:', err);
     return NEGOCIO_PADRAO;
@@ -628,13 +712,17 @@ async function criarLeadInicialSeNaoExistir(negocioId, subscriberId, negocio) {
     if (!nomeInstagram) return; // sem nome ainda, tenta de novo na próxima mensagem
 
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const tipoReal = negocio.tipo || 'produto_digital';
+    const nomeItem = tipoReal === 'agencia_viagens'
+      ? (negocio._pacoteAtivo?.destino || negocio.nome || 'Pacote de viagem')
+      : (negocio.nomeProduto || negocio.nome || 'Produto digital');
     const registro = {
       id,
       subscriberId,
-      tipo: 'produto_digital',
+      tipo: tipoReal,
       status: 'lead_inicial',
       nome: nomeInstagram,
-      itens: [negocio.nomeProduto || negocio.nome || 'Produto digital'],
+      itens: [nomeItem],
       dados: { 'Nome Instagram': nomeInstagram },
       criadoEm: new Date().toISOString(),
     };
