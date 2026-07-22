@@ -310,7 +310,13 @@
     renderizarLista(data.pacotes || []);
   }
 
+  let _cachePacotes = {};
+
   function renderizarLista(pacotes) {
+    // Guarda os pacotes num cache global pra evitar JSON inline nos botões
+    _cachePacotes = {};
+    pacotes.forEach(p => { _cachePacotes[p.id] = p; });
+
     const lista = document.getElementById('lista-pacotes');
     if (!pacotes.length) {
       lista.innerHTML = '<div class="empty-state">Nenhum pacote cadastrado ainda. Clique em "Novo pacote" para criar.</div>';
@@ -326,7 +332,7 @@
         + '</div>'
         + '<div class="pacote-acoes">'
         + '<button class="btn-secondary" onclick="copiarLink(\'' + p.id + '\')">Copiar link</button>'
-        + '<button class="btn-secondary" onclick="editarPacote(' + JSON.stringify(JSON.stringify(p)) + ')">Editar</button>'
+        + '<button class="btn-secondary" onclick="editarPacote(\'' + p.id + '\')">Editar</button>'
         + '<button class="btn-danger" onclick="excluirPacote(\'' + p.id + '\', \'' + esc(p.destino || '') + '\')">Excluir</button>'
         + '</div></div>';
     }).join('');
@@ -379,8 +385,10 @@
     document.getElementById('form-pacote').style.display = 'none';
   }
 
-  function editarPacote(jsonStr) {
-    abrirForm(JSON.parse(jsonStr));
+  function editarPacote(id) {
+    const pacote = _cachePacotes[id];
+    if (!pacote) { alert('Pacote não encontrado.'); return; }
+    abrirForm(pacote);
   }
 
   async function salvar() {
