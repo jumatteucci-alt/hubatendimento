@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pacote de Viagem</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{ --ink:#0d0f14; --ink-2:#161920; --paper:#f2efe9; --paper-dim:#9a9890; --coral:#ff6b4a; --green:#5ee69b; --gold:#f5c842; --line:rgba(242,239,233,0.1); }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  body{ background:var(--ink); color:var(--paper); font-family:'IBM Plex Sans',sans-serif; min-height:100vh; }
+
+  .hero{ position:relative; height:320px; overflow:hidden; }
+  .hero-fotos{ display:flex; height:100%; gap:2px; }
+  .hero-foto{ flex:1; background:#222; background-size:cover; background-position:center; }
+  .hero-overlay{ position:absolute; inset:0; background:linear-gradient(to bottom, rgba(13,15,20,0) 40%, rgba(13,15,20,1) 100%); }
+  .hero-titulo{ position:absolute; bottom:24px; left:0; right:0; text-align:center; padding:0 20px; }
+  .hero-titulo h1{ font-family:'Archivo',sans-serif; font-size:2.4rem; font-weight:800; line-height:1; }
+  .hero-titulo .subtitulo{ font-size:0.95rem; color:var(--paper-dim); margin-top:6px; }
+
+  .wrap{ max-width:680px; margin:0 auto; padding:32px 20px 100px; }
+
+  .icones{ display:flex; gap:12px; justify-content:center; margin-bottom:32px; flex-wrap:wrap; }
+  .icone{ display:flex; flex-direction:column; align-items:center; gap:6px; background:var(--ink-2); border:1px solid var(--line); border-radius:12px; padding:14px 20px; font-size:0.78rem; color:var(--paper-dim); min-width:80px; text-align:center; }
+  .icone span{ font-size:1.6rem; }
+
+  .secao{ background:var(--ink-2); border:1px solid var(--line); border-radius:14px; padding:22px 24px; margin-bottom:16px; }
+  .secao h2{ font-family:'Archivo',sans-serif; font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--paper-dim); margin-bottom:16px; }
+
+  .voo-row{ display:flex; align-items:center; gap:16px; }
+  .voo-col{ flex:1; }
+  .voo-label{ font-size:0.72rem; color:var(--paper-dim); margin-bottom:3px; text-transform:uppercase; letter-spacing:0.05em; }
+  .voo-valor{ font-size:1rem; font-weight:600; }
+  .voo-cia{ font-size:0.82rem; color:var(--paper-dim); margin-top:2px; }
+  .voo-seta{ font-size:1.4rem; color:var(--paper-dim); flex-shrink:0; }
+  .voo-divider{ border:none; border-top:1px solid var(--line); margin:16px 0; }
+
+  .hotel-nome{ font-size:1.1rem; font-weight:600; margin-bottom:8px; }
+  .hotel-desc{ font-size:0.9rem; color:var(--paper-dim); line-height:1.6; margin-bottom:16px; }
+  .cafe-badge{ display:inline-flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--green); background:rgba(94,230,155,0.1); border:1px solid rgba(94,230,155,0.2); border-radius:999px; padding:6px 14px; }
+
+  .preco-wrap{ text-align:center; padding:8px 0; }
+  .preco-label{ font-size:0.82rem; color:var(--paper-dim); margin-bottom:6px; }
+  .preco-principal{ font-family:'Archivo',sans-serif; font-size:2.6rem; font-weight:800; color:var(--gold); line-height:1; }
+  .preco-parcelado{ font-size:0.85rem; color:var(--paper-dim); margin-top:6px; }
+  .preco-vista{ font-size:0.9rem; color:var(--green); margin-top:6px; }
+
+  .cta-btn{ display:block; background:var(--coral); color:var(--ink); text-decoration:none; text-align:center; font-family:'Archivo',sans-serif; font-size:1.05rem; font-weight:700; border-radius:12px; padding:18px; margin-top:24px; }
+  .cta-btn:hover{ opacity:0.9; }
+  .cta-sub{ text-align:center; font-size:0.8rem; color:var(--paper-dim); margin-top:10px; }
+
+  .estado{ text-align:center; padding:80px 20px; color:var(--paper-dim); font-size:1rem; }
+</style>
+</head>
+<body>
+
+<div id="loading" class="estado">Carregando pacote...</div>
+<div id="conteudo" style="display:none;"></div>
+<div id="erro" class="estado" style="display:none;">Pacote não encontrado.</div>
+
+<script>
+  const id = new URLSearchParams(window.location.search).get('id');
+  if (!id) { show('erro'); } else {
+    fetch('/api/pacote?id=' + encodeURIComponent(id))
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(d => renderizar(d.pacote))
+      .catch(() => show('erro'));
+  }
+
+  function show(el) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById(el).style.display = 'block';
+  }
+
+  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+  function fmt(n) { return Number(n).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+
+  function renderizar(p) {
+    document.title = (p.destino || 'Pacote') + ' — Vou Turistar';
+
+    const fotos = [p.foto1, p.foto2, p.foto3].filter(Boolean);
+    const heroFotos = fotos.length
+      ? fotos.map(f => '<div class="hero-foto" style="background-image:url(\'' + esc(f) + '\')"></div>').join('')
+      : '<div class="hero-foto" style="background:#1a1d24;"></div>';
+
+    const icones = [];
+    if (p.incluiPassagem !== false) icones.push('<div class="icone"><span>✈️</span>Passagem</div>');
+    if (p.incluiHotel !== false)    icones.push('<div class="icone"><span>🏨</span>Hotel</div>');
+    if (p.incluiCafe)               icones.push('<div class="icone"><span>☕</span>Café da manhã</div>');
+
+    let secaoVoo = '';
+    if (p.vooIdaData || p.vooVoltaData) {
+      secaoVoo = '<div class="secao"><h2>✈️ Voo</h2><div class="voo-row">'
+        + '<div class="voo-col"><div class="voo-label">Ida</div>'
+        + '<div class="voo-valor">' + esc(p.vooIdaData || '') + '</div>'
+        + '<div class="voo-cia">' + esc(p.vooIdaHora || '') + (p.vooIdaCia ? ' · ' + esc(p.vooIdaCia) : '') + '</div></div>'
+        + '<div class="voo-seta">✈</div>'
+        + '<div class="voo-col" style="text-align:right;"><div class="voo-label">Volta</div>'
+        + '<div class="voo-valor">' + esc(p.vooVoltaData || '') + '</div>'
+        + '<div class="voo-cia">' + esc(p.vooVoltaHora || '') + (p.vooVoltaCia ? ' · ' + esc(p.vooVoltaCia) : '') + '</div></div>'
+        + '</div></div>';
+    }
+
+    let secaoHotel = '';
+    if (p.hotelNome) {
+      secaoHotel = '<div class="secao"><h2>🏨 Hospedagem</h2>'
+        + '<div class="hotel-nome">' + esc(p.hotelNome) + '</div>'
+        + (p.hotelDescricao ? '<div class="hotel-desc">' + esc(p.hotelDescricao) + '</div>' : '')
+        + (p.incluiCafe ? '<div class="cafe-badge">☕ Café da manhã incluído</div>' : '')
+        + '</div>';
+    }
+
+    let secaoPreco = '';
+    const preco = Number(p.preco || 0);
+    if (preco > 0) {
+      const parcelas = Number(p.parcelas || 10);
+      const desconto = Number(p.descontoAvista || 0);
+      const valorParcela = parcelas > 0 ? fmt(preco / parcelas) : null;
+      const valorVista = desconto > 0 ? fmt(preco * (1 - desconto / 100)) : null;
+
+      secaoPreco = '<div class="secao"><div class="preco-wrap"><div class="preco-label">A partir de</div>'
+        + (valorParcela
+          ? '<div class="preco-principal">' + parcelas + 'x de R$ ' + valorParcela + '</div>'
+            + '<div class="preco-parcelado">ou R$ ' + fmt(preco) + ' sem juros</div>'
+          : '<div class="preco-principal">R$ ' + fmt(preco) + '</div>')
+        + (valorVista ? '<div class="preco-vista">💚 R$ ' + valorVista + ' à vista (' + desconto + '% de desconto)</div>' : '')
+        + '</div>'
+        + (p.linkCheckout
+          ? '<a href="' + esc(p.linkCheckout) + '" class="cta-btn" target="_blank" rel="noopener">Garantir minha vaga ✈️</a>'
+            + '<div class="cta-sub">Pagamento seguro via Mercado Pago</div>'
+          : '')
+        + '</div>';
+    }
+
+    document.getElementById('conteudo').innerHTML =
+      '<div class="hero"><div class="hero-fotos">' + heroFotos + '</div>'
+      + '<div class="hero-overlay"></div>'
+      + '<div class="hero-titulo"><h1>' + esc(p.destino || 'Pacote de Viagem') + '</h1>'
+      + (p.duracao ? '<div class="subtitulo">' + esc(p.duracao) + '</div>' : '')
+      + '</div></div>'
+      + '<div class="wrap">'
+      + '<div class="icones">' + icones.join('') + '</div>'
+      + secaoVoo + secaoHotel + secaoPreco
+      + '</div>';
+
+    show('conteudo');
+  }
+</script>
+</body>
+</html>
