@@ -225,6 +225,34 @@
   document.getElementById('btn-gerar-parcelado').addEventListener('click', () => gerarLink('parcelado'));
   document.getElementById('btn-gerar-pix').addEventListener('click', () => gerarLink('pix'));
 
+  async function gerarLink(tipo) {
+    const pacoteId = document.getElementById('f-id').value;
+    if (!pacoteId) { alert('Salve o pacote primeiro antes de gerar o link.'); return; }
+    const status = document.getElementById('link-status');
+    status.style.color = 'var(--paper-dim)';
+    status.textContent = tipo === 'pix' ? 'Gerando link Pix...' : 'Gerando link parcelado...';
+    try {
+      const resp = await fetch('/api/mp-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ negocio_id: negocioId, senha: senhaAtual, pacoteId, tipo }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        status.style.color = 'var(--coral)';
+        status.textContent = 'Erro: ' + (data.error || 'Falha ao gerar link');
+        return;
+      }
+      status.style.color = 'var(--green)';
+      status.textContent = 'Link ' + (tipo === 'pix' ? 'Pix' : 'parcelado') + ' gerado com sucesso!';
+      if (tipo === 'pix') document.getElementById('f-checkout-pix').value = data.link;
+      else document.getElementById('f-checkout').value = data.link;
+    } catch (err) {
+      status.style.color = 'var(--coral)';
+      status.textContent = 'Erro ao conectar com o servidor.';
+    }
+  }
+
   function calcular() {
     const custo = parseFloat(document.getElementById('f-custo').value) || 0;
     const margem = parseFloat(document.getElementById('f-margem').value) || 0;
