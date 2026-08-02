@@ -396,8 +396,9 @@
           </div>`;
       }
 
+      const agenciaViagens = p.tipo === 'agencia_viagens';
       let metaHtml = '';
-      if (produtoDigital && p.dados) {
+      if ((produtoDigital || agenciaViagens) && p.dados) {
         metaHtml = Object.entries(p.dados)
           .map(([k, v]) => `<span><strong>${escapeHtml(k)}:</strong> ${escapeHtml(String(v))}</span>`)
           .join('');
