@@ -422,6 +422,10 @@
     document.getElementById('f-checkout').value = pacote?.linkCheckout || '';
     document.getElementById('f-checkout-pix').value = pacote?.linkCheckoutPix || '';
     document.getElementById('f-roteiro').value = pacote?.roteiro || '';
+    // Reconstrói os chips de campos a coletar
+    const listaChips = document.getElementById('campos-coleta-lista');
+    listaChips.innerHTML = '';
+    (pacote?.camposColeta || []).forEach(campo => adicionarChipCampo(campo));
     document.getElementById('link-status').textContent = '';
     document.getElementById('save-status').textContent = '';
     document.getElementById('save-error').textContent = '';
