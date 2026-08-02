@@ -555,14 +555,16 @@ async function processarMensagem(negocioId, subscriberId, mensagemDoCliente, neg
 
     const matchPedido = textoCompleto.match(/###PEDIDO###([\s\S]*?)###FIM###/);
     if (matchPedido) {
-      try { pedidoFechado = JSON.parse(matchPedido[1].trim()); } catch (e) { console.error('Parse pedido falhou'); }
+      try { pedidoFechado = JSON.parse(matchPedido[1].trim()); } catch (e) { console.error('Parse pedido falhou — conteúdo:', matchPedido[1].trim()); }
       replyText = replyText.replace(/###PEDIDO###[\s\S]*?###FIM###/, '').trim();
     }
 
     const matchLead = textoCompleto.match(/###LEAD###([\s\S]*?)###FIM###/);
     if (matchLead) {
-      try { leadCapturado = JSON.parse(matchLead[1].trim()); } catch (e) { console.error('Parse lead falhou'); }
+      try { leadCapturado = JSON.parse(matchLead[1].trim()); } catch (e) { console.error('Parse lead falhou — conteúdo:', matchLead[1].trim()); }
       replyText = replyText.replace(/###LEAD###[\s\S]*?###FIM###/, '').trim();
+    } else if (textoCompleto.includes('###LEAD###')) {
+      console.error('###LEAD### encontrado mas ###FIM### ausente — texto completo:', textoCompleto.slice(0, 500));
     }
 
     if (textoCompleto.includes('###CANCELAR###')) {
