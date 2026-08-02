@@ -151,7 +151,13 @@
       <label class="checkbox-row"><input type="checkbox" id="f-passagem" checked> Passagem aérea</label>
       <label class="checkbox-row"><input type="checkbox" id="f-hotel" checked> Hotel</label>
       <label class="checkbox-row"><input type="checkbox" id="f-cafe"> Café da manhã</label>
+      <label class="checkbox-row"><input type="checkbox" id="f-transfer"> Transfer aeroporto/hotel</label>
+      <label class="checkbox-row"><input type="checkbox" id="f-citytour"> City tour guiado em português</label>
+      <label class="checkbox-row"><input type="checkbox" id="f-suporte"> Suporte WhatsApp durante a viagem</label>
     </div>
+
+    <div class="section-label">🗺️ Roteiro</div>
+    <div class="field"><label>Roteiro resumido (o bot envia quando o cliente pedir)</label><textarea id="f-roteiro" rows="8" placeholder="Dia 1 — Chegada e Centro Histórico&#10;Manhã: transfer do aeroporto ao hotel...&#10;&#10;Dia 2 — Recoleta e Palermo&#10;..."></textarea></div>
 
     <div class="section-label">📋 Dados a coletar do lead</div>
     <p style="font-size:0.82rem;color:var(--paper-dim);margin-bottom:10px;">Defina exatamente quais informações o bot deve pedir antes de mandar o link de checkout. Na ordem que quiser.</p>
@@ -404,6 +410,9 @@
     document.getElementById('f-passagem').checked = pacote?.incluiPassagem !== false;
     document.getElementById('f-hotel').checked = pacote?.incluiHotel !== false;
     document.getElementById('f-cafe').checked = !!pacote?.incluiCafe;
+    document.getElementById('f-transfer').checked = !!pacote?.incluiTransfer;
+    document.getElementById('f-citytour').checked = !!pacote?.incluiCityTour;
+    document.getElementById('f-suporte').checked = !!pacote?.incluiSuporte;
     document.getElementById('f-custo').value = pacote?.custo || '';
     document.getElementById('f-margem').value = pacote?.margem ?? 20;
     document.getElementById('f-taxa-mp').value = pacote?.taxaMP ?? 15.99;
@@ -412,6 +421,7 @@
     document.getElementById('f-preco').value = pacote?.preco || '';
     document.getElementById('f-checkout').value = pacote?.linkCheckout || '';
     document.getElementById('f-checkout-pix').value = pacote?.linkCheckoutPix || '';
+    document.getElementById('f-roteiro').value = pacote?.roteiro || '';
     document.getElementById('link-status').textContent = '';
     document.getElementById('save-status').textContent = '';
     document.getElementById('save-error').textContent = '';
@@ -459,6 +469,9 @@
       incluiPassagem: document.getElementById('f-passagem').checked,
       incluiHotel: document.getElementById('f-hotel').checked,
       incluiCafe: document.getElementById('f-cafe').checked,
+      incluiTransfer: document.getElementById('f-transfer').checked,
+      incluiCityTour: document.getElementById('f-citytour').checked,
+      incluiSuporte: document.getElementById('f-suporte').checked,
       custo: parseFloat(document.getElementById('f-custo').value) || 0,
       margem: parseFloat(document.getElementById('f-margem').value) || 20,
       taxaMP: parseFloat(document.getElementById('f-taxa-mp').value) || 15.99,
@@ -468,6 +481,7 @@
       linkCheckout: document.getElementById('f-checkout').value.trim(),
       linkCheckoutPix: document.getElementById('f-checkout-pix').value.trim(),
       camposColeta: Array.from(document.querySelectorAll('#campos-coleta-lista .chip-campo')).map(c => c.dataset.campo),
+      roteiro: document.getElementById('f-roteiro').value.trim(),
     };
 
     if (!pacote.destino) {
