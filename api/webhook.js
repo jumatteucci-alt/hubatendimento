@@ -175,8 +175,15 @@ export default async function handler(req, res) {
           return res.status(200).send('EVENT_RECEIVED');
         }
 
-        if (negocio.tipo === 'produto_digital') {
+        if (negocio.tipo === 'produto_digital' || negocio.tipo === 'agencia_viagens') {
           await criarLeadInicialSeNaoExistir(negocioId, senderId, negocio);
+        }
+
+        // Verifica se conversa foi assumida por humano
+        const assumido = await redisCommand(['GET', ns(negocioId, `humano:${senderId}`)]);
+        if (assumido?.result === '1') {
+          console.log(`[Meta Direto][${negocioId}] Conversa com ${senderId} assumida por humano — bot silenciado`);
+          return res.status(200).send('EVENT_RECEIVED');
         }
 
         const { replyText, pedidoFechado, leadCapturado, pedidoCancelado, tipoNegocio } =
@@ -293,27 +300,21 @@ const PROMPT_AGENCIA_VIAGENS = `Você é o atendente virtual de uma agência de 
 ${PROMPT_COMUM}
 
 REGRAS DA CONVERSA:
-- Apresente o pacote disponível de forma natural e atrativa logo na primeira mensagem, com destino, período e o que está incluído
-- Não invente informações, preços ou datas que não estejam no pacote abaixo
-- Seu objetivo principal é COLETAR OS DADOS DO LEAD, não fechar a venda diretamente — a venda é fechada pelo especialista
+- Apresente o pacote disponível de forma natural e atrativa logo na primeira mensagem, com destino e o que está incluído. Não mencione datas ou período fixo — o pacote é personalizado para cada cliente
+- Não invente informações ou preços que não estejam no pacote abaixo
+- Seu objetivo é COLETAR OS DADOS DO LEAD. A venda é sempre fechada pelo especialista humano, nunca por você
 - Colete os campos listados em "DADOS A COLETAR" um por um, de forma natural, sem parecer um formulário
 - Assim que coletar QUALQUER dado, ADICIONE no final da resposta este bloco e continue coletando:
 ###LEAD###
 {"itens":["nome do pacote"],"total":0,"dados":{"Nome do campo":"valor informado"}}
 ###FIM###
 - Sempre que coletar mais um dado, inclua o ###LEAD### novamente com TODOS os dados conhecidos até agora
-- Quando tiver coletado TODOS os dados de "DADOS A COLETAR", verifique a intenção do cliente:
-
-CENÁRIO 1 — O cliente quer o pacote do anúncio (período informado no pacote):
-- Diga que o pacote está disponível e mande o link de checkout
-- Explique que o pagamento é feito por ali e que o especialista entra em contato após a confirmação
-- NÃO diga que a compra foi concluída — só o cliente sabe se finalizou o pagamento
-
-CENÁRIO 2 — O cliente quer outra data ou destino diferente:
-- Diga que o especialista vai preparar um pacote personalizado para as datas/destino dele
-- Confirme que os dados foram recebidos e que entrarão em contato em breve
-- Emita o bloco ###LEAD### final com todos os dados e encerre a conversa de forma simpática
-
+- Quando tiver coletado TODOS os dados de "DADOS A COLETAR":
+  - Confirme que os dados foram recebidos
+  - Informe que o especialista vai montar a cotação personalizada e enviar por aqui mesmo em até 24 horas
+  - Emita o bloco ###LEAD### final com todos os dados e encerre a conversa de forma simpática
+  - NÃO mande link de checkout em nenhuma hipótese — o especialista cuida disso
+- Se o cliente perguntar sobre o roteiro ou o que vai fazer durante a viagem, envie o ROTEIRO DO PACOTE cadastrado abaixo. Se não houver roteiro cadastrado, diga que o especialista envia o roteiro completo junto com a cotação
 - Se o cliente pedir explicitamente pra falar com um humano, use ###CHAMAR_HUMANO###`;
 
 
@@ -389,13 +390,12 @@ Destino: ${pacote.destino || '(não definido)'}
 Período: ${pacote.periodo || '(não definido)'}
 Duração: ${pacote.duracao || ''}
 Para: ${pacote.pessoas || 2} pessoa(s) — ${pacote.acomodacao || 'quarto duplo'}
-Inclui: ${[pacote.incluiPassagem !== false ? 'Passagem aérea' : null, pacote.incluiHotel !== false ? 'Hotel' : null, pacote.incluiCafe ? 'Café da manhã' : null].filter(Boolean).join(', ')}
-Voo ida: ${[pacote.vooIdaData, pacote.vooIdaHora, pacote.vooIdaCia, pacote.vooIdaAeroporto].filter(Boolean).join(' · ')}
-Voo volta: ${[pacote.vooVoltaData, pacote.vooVoltaHora, pacote.vooVoltaCia, pacote.vooVoltaAeroporto].filter(Boolean).join(' · ')}
+Inclui: ${[pacote.incluiPassagem !== false ? 'Passagem aérea' : null, pacote.incluiHotel !== false ? 'Hotel' : null, pacote.incluiCafe ? 'Café da manhã' : null, pacote.incluiTransfer ? 'Transfer aeroporto/hotel' : null, pacote.incluiCityTour ? 'City tour guiado em português' : null, pacote.incluiSuporte ? 'Suporte WhatsApp durante a viagem' : null].filter(Boolean).join(', ')}
 Hotel: ${pacote.hotelNome || ''} ${pacote.hotelDescricao ? '— ' + pacote.hotelDescricao : ''}
-Preço: ${valorParcela ? `${parcelas}x de R$ ${valorParcela} (ou R$ ${Number(pacote.preco).toFixed(2).replace('.', ',')} no Pix com desconto)` : '(consultar)'}
-Link de checkout parcelado: ${pacote.linkCheckout || '(não configurado)'}
-Link Pix: ${pacote.linkCheckoutPix || '(não configurado)'}
+Preço de referência: ${valorParcela ? `${parcelas}x de R$ ${valorParcela} (ou R$ ${Number(pacote.preco).toFixed(2).replace('.', ',')} no Pix com desconto)` : '(consultar com especialista)'}
+
+ROTEIRO DO PACOTE (envie quando o cliente perguntar sobre o que vai fazer durante a viagem):
+${pacote.roteiro || '(não cadastrado — informe que o especialista envia junto com a cotação)'}
 
 DADOS A COLETAR (peça um por um, de forma natural):
 ${camposTexto}${blocoClienteDados}${instrucaoPrimeira}`;
@@ -562,14 +562,21 @@ async function processarMensagem(negocioId, subscriberId, mensagemDoCliente, neg
 
     const matchPedido = textoCompleto.match(/###PEDIDO###([\s\S]*?)###FIM###/);
     if (matchPedido) {
-      try { pedidoFechado = JSON.parse(matchPedido[1].trim()); } catch (e) { console.error('Parse pedido falhou'); }
+      try { pedidoFechado = JSON.parse(matchPedido[1].trim()); } catch (e) { console.error('Parse pedido falhou — conteúdo:', matchPedido[1].trim()); }
       replyText = replyText.replace(/###PEDIDO###[\s\S]*?###FIM###/, '').trim();
     }
 
-    const matchLead = textoCompleto.match(/###LEAD###([\s\S]*?)###FIM###/);
+    const matchLead = textoCompleto.match(/###LEAD###\s*(\{[\s\S]*?\})\s*###FIM###/);
     if (matchLead) {
-      try { leadCapturado = JSON.parse(matchLead[1].trim()); } catch (e) { console.error('Parse lead falhou'); }
+      try {
+        leadCapturado = JSON.parse(matchLead[1].trim());
+        console.log('[Lead] Capturado com sucesso:', JSON.stringify(leadCapturado));
+      } catch (e) {
+        console.error('[Lead] Parse falhou — conteúdo bruto:', matchLead[1].trim());
+      }
       replyText = replyText.replace(/###LEAD###[\s\S]*?###FIM###/, '').trim();
+    } else if (textoCompleto.includes('###LEAD###')) {
+      console.error('[Lead] ###LEAD### encontrado mas ###FIM### ausente ou JSON malformado — trecho:', textoCompleto.slice(textoCompleto.indexOf("###LEAD###"), textoCompleto.indexOf("###LEAD###") + 300));
     }
 
     if (textoCompleto.includes('###CANCELAR###')) {
