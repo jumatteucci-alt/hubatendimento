@@ -38,6 +38,7 @@
   .hotel-nome{ font-size:1.1rem; font-weight:600; margin-bottom:8px; }
   .hotel-desc{ font-size:0.9rem; color:var(--paper-dim); line-height:1.6; margin-bottom:16px; }
   .cafe-badge{ display:inline-flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--green); background:rgba(94,230,155,0.1); border:1px solid rgba(94,230,155,0.2); border-radius:999px; padding:6px 14px; }
+  .badges-wrap{ display:flex; flex-direction:column; gap:8px; margin-top:12px; }
 
   .preco-wrap{ text-align:center; padding:8px 0; }
   .preco-label{ font-size:0.82rem; color:var(--paper-dim); margin-bottom:6px; }
@@ -90,6 +91,9 @@
     if (p.incluiPassagem !== false) icones.push('<div class="icone"><span>✈️</span>Passagem</div>');
     if (p.incluiHotel !== false)    icones.push('<div class="icone"><span>🏨</span>Hotel</div>');
     if (p.incluiCafe)               icones.push('<div class="icone"><span>☕</span>Café da manhã</div>');
+    if (p.incluiTransfer)           icones.push('<div class="icone"><span>🚐</span>Transfer</div>');
+    if (p.incluiCityTour)           icones.push('<div class="icone"><span>🗺️</span>City tour em português</div>');
+    if (p.incluiSuporte)            icones.push('<div class="icone"><span>💬</span>Suporte WhatsApp</div>');
 
     // Voo — só exibe se não for flexível e tiver dados
     let secaoVoo = '';
@@ -110,7 +114,12 @@
       secaoHotel = '<div class="secao"><h2>🏨 Hospedagem</h2>'
         + '<div class="hotel-nome">' + esc(p.hotelNome) + '</div>'
         + (p.hotelDescricao ? '<div class="hotel-desc">' + esc(p.hotelDescricao) + '</div>' : '')
+        + '<div class="badges-wrap">'
         + (p.incluiCafe ? '<div class="cafe-badge">☕ Café da manhã incluído</div>' : '')
+        + (p.incluiTransfer ? '<div class="cafe-badge">🚐 Transfer aeroporto/hotel incluído</div>' : '')
+        + (p.incluiCityTour ? '<div class="cafe-badge">🗺️ City tour guiado em português incluído</div>' : '')
+        + (p.incluiSuporte ? '<div class="cafe-badge">💬 Suporte WhatsApp durante a viagem</div>' : '')
+        + '</div>'
         + '</div>';
     }
 
